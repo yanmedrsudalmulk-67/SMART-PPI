@@ -1,0 +1,125 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-heading: var(--font-space), ui-sans-serif, system-ui, sans-serif;
+
+  --color-navy-dark: #020617;
+  --color-navy-light: #0f172a;
+  --color-primary: #3b82f6;
+  --color-primary-glow: rgba(59, 130, 246, 0.5);
+  --color-secondary: #8b5cf6;
+  --color-secondary-glow: rgba(139, 92, 246, 0.5);
+  --color-glass: rgba(255, 255, 255, 0.03);
+  --color-glass-border: rgba(255, 255, 255, 0.1);
+  
+  --color-background: var(--color-navy-dark);
+}
+
+@layer utilities {
+  .glass-card, .sleek-card {
+    @apply bg-white/5 backdrop-blur-xl border border-white/10 shadow-2xl;
+  }
+  .sleek-card {
+    @apply rounded-[24px] p-6 lg:p-8;
+  }
+  .heading-premium {
+    @apply font-heading font-bold tracking-tight text-white;
+  }
+  .glow-blue {
+    box-shadow: 0 0 20px var(--color-primary-glow);
+  }
+  .glow-purple {
+    box-shadow: 0 0 20px var(--color-secondary-glow);
+  }
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500;
+  }
+}
+
+/* Dark Mode Overrides (Default) for legacy components */
+:root:not(.light) .text-navy-dark,
+:root:not(.light) .text-slate-900,
+:root:not(.light) .text-slate-800,
+:root:not(.light) .text-slate-700 {
+  color: #ffffff !important;
+}
+:root:not(.light) .bg-white,
+:root:not(.light) .bg-slate-50,
+:root:not(.light) .bg-gray-50 {
+  background-color: rgba(255, 255, 255, 0.05) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+:root:not(.light) .border-bg-gray,
+:root:not(.light) .border-gray-200 {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+}
+:root:not(.light) .text-text-muted {
+  color: #94a3b8 !important;
+}
+
+/* Light Mode Overrides */
+html.light body {
+  background-color: #ffffff;
+  color: #0f172a;
+}
+html.light .bg-navy-dark {
+  background-color: #ffffff !important;
+}
+html.light .bg-navy-light {
+  background-color: #f8fafc !important;
+}
+html.light .bg-navy-dark\/50 {
+  background-color: rgba(255, 255, 255, 0.8) !important;
+}
+html.light .bg-navy-light\/50 {
+  background-color: rgba(248, 250, 252, 0.8) !important;
+}
+html.light .bg-navy-light\/80 {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+}
+html.light .text-white {
+  color: #0f172a !important;
+}
+html.light .text-slate-200 {
+  color: #334155 !important;
+}
+html.light .text-slate-300 {
+  color: #475569 !important;
+}
+html.light .text-slate-400 {
+  color: #64748b !important;
+}
+html.light .glass-card,
+html.light .bg-white\/5 {
+  background-color: #ffffff !important;
+  border-color: rgba(0, 0, 0, 0.05) !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01) !important;
+}
+html.light .bg-white\/10 {
+  background-color: rgba(0, 0, 0, 0.04) !important;
+}
+html.light .border-white\/5 {
+  border-color: rgba(0, 0, 0, 0.05) !important;
+}
+html.light .border-white\/10 {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+html.light .border-white\/20 {
+  border-color: rgba(0, 0, 0, 0.15) !important;
+}
+/* Preserve colors for primary buttons/elements that should stay white text */
+html.light button.bg-blue-600 .text-white,
+html.light button.bg-blue-600 {
+  color: #ffffff !important;
+}
+html.light .bg-blue-600 .text-white,
+html.light .bg-purple-600 .text-white,
+html.light .bg-emerald-600 .text-white,
+html.light .bg-red-600 .text-white {
+  color: #ffffff !important;
+}
+html.light .text-navy-dark {
+  color: #0f172a !important;
+}
+
