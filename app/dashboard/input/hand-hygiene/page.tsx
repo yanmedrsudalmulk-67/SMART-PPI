@@ -52,7 +52,7 @@ export default function HandHygieneAuditPage() {
   const router = useRouter();
   const { userRole } = useAppContext();
   
-  const [startTime, setStartTime] = useState<Date>(new Date());
+  const [startTime, setStartTime] = useState<Date | null>(null);
   const [endTime, setEndTime] = useState<Date | null>(null);
   
   const [observer, setObserver] = useState('');
@@ -76,14 +76,20 @@ export default function HandHygieneAuditPage() {
   };
 
   const getDuration = () => {
-    const end = endTime || new Date();
+    if (!startTime) return '0 Menit';
+    const end = endTime || now || new Date();
     const diff = Math.floor((end.getTime() - startTime.getTime()) / 1000 / 60); // minutes
     return `${diff} Menit`;
   };
   
   // Realtime clock for duration if not ended
-  const [now, setNow] = useState(new Date());
+  const [now, setNow] = useState<Date | null>(null);
   useEffect(() => {
+    const d = new Date();
+    requestAnimationFrame(() => {
+      setStartTime(d);
+      setNow(d);
+    });
     const timer = setInterval(() => setNow(new Date()), 60000);
     return () => clearInterval(timer);
   }, []);
@@ -111,7 +117,7 @@ export default function HandHygieneAuditPage() {
     let status = 'Belum Dinilai';
     
     if (peluang > 0) {
-      if (persentase >= 85) { color = 'text-emerald-400'; bg = 'bg-emerald-500/10'; status = 'Baik'; }
+      if (persentase >= 85) { color = 'text-blue-400'; bg = 'bg-blue-500/10'; status = 'Baik'; }
       else if (persentase >= 70) { color = 'text-amber-400'; bg = 'bg-amber-500/10'; status = 'Cukup'; }
       else { color = 'text-red-400'; bg = 'bg-red-500/10'; status = 'Perlu Perbaikan'; }
     }
@@ -119,18 +125,52 @@ export default function HandHygieneAuditPage() {
     return { patuh, peluang, persentase, color, bg, status };
   }, [momenData]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setEndTime(new Date());
+    const end = new Date();
+    setEndTime(end);
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
+    
+    try {
+      const { getSupabase } = await import('@/lib/supabase');
+      const supabase = getSupabase();
+
+      const { error } = await supabase
+        .from('audit_hand_hygiene')
+        .insert([{
+          observer,
+          unit,
+          profesi,
+          m1: momenData.m1,
+          m2: momenData.m2,
+          m3: momenData.m3,
+          m4: momenData.m4,
+          m5: momenData.m5,
+          patuh: stats.patuh,
+          peluang: stats.peluang,
+          persentase: stats.persentase,
+          start_time: startTime?.toISOString() || new Date().toISOString(),
+          end_time: end.toISOString()
+        }]);
+
+      if (error) throw error;
+
       setShowToast(true);
       setTimeout(() => {
         setShowToast(false);
         router.push('/dashboard/input');
       }, 2000);
-    }, 1500);
+    } catch (err: any) {
+      console.error("Gagal menyimpan ke Supabase:", err);
+      if (err.message && err.message.includes('row-level security policy')) {
+        alert('Gagal menyimpan: Akses Ditolak oleh keamanan Supabase (RLS). Harap nonaktifkan Row-Level Security (RLS) pada tabel "audit_hand_hygiene" atau tambahkan Policy (Insert) di dashboard Supabase agar aplikasi bisa mengisi data.');
+      } else {
+        // Fallback alert jika gagal (browser API)
+        alert(`Gagal menyimpan data: ${err.message || 'Cek koneksi dan tabel database Supabase'}`);
+      }
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const calculateDashOffset = (percent: number) => {
@@ -160,8 +200,8 @@ export default function HandHygieneAuditPage() {
           <ArrowLeft className="w-5 h-5" />
         </Link>
         <div>
-          <h1 className="text-2xl sm:text-3xl font-heading font-bold tracking-tight text-gradient">Audit Hand Hygiene</h1>
-          <p className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.1em] text-blue-400 mt-1">WHO 5 Moments Observation</p>
+          <h1 className="text-2xl sm:text-3xl font-heading font-bold tracking-tight text-gradient drop-shadow-[0_0_25px_rgba(59,130,246,0.5)]">Audit Hand Hygiene</h1>
+          <p className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.1em] text-blue-400 mt-1">Kepatuhan 5 Momen dan 6 Langkah Cuci Tangan</p>
         </div>
       </div>
 
@@ -253,7 +293,7 @@ export default function HandHygieneAuditPage() {
                   <select 
                     value={profesi}
                     onChange={(e) => setProfesi(e.target.value)}
-                    className="w-full bg-white/5 border border-white/5 rounded-xl pl-10 pr-4 py-3 text-sm text-white outline-none focus:border-emerald-500/50 appearance-none transition-all"
+                    className="w-full bg-white/5 border border-white/5 rounded-xl pl-10 pr-4 py-3 text-sm text-white outline-none focus:border-blue-500/50 appearance-none transition-all"
                     required
                   >
                     <option value="" className="bg-navy-dark text-slate-400">Pilih Profesi...</option>
@@ -268,7 +308,7 @@ export default function HandHygieneAuditPage() {
           {/* SECTION 5: 5 Momen Cuci Tangan */}
           <div className="space-y-4">
             <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-slate-400 mb-6 pl-2">
-              <Activity className="w-4 h-4 text-blue-400" /> WHO 5 Moments
+              <Activity className="w-4 h-4 text-blue-400" /> Penerapan 5 Momen dan 6 Langkah Cuci Tangan
             </h2>
             
             {moments.map((momen) => (
@@ -276,7 +316,7 @@ export default function HandHygieneAuditPage() {
                 {/* Visual Indicator of selection */}
                 {momenData[momen.id] && (
                   <div className={`absolute left-0 top-0 bottom-0 w-1 ${
-                    momenData[momen.id] === 'hr' || momenData[momen.id] === 'hw' ? 'bg-emerald-500 shadow-[0_0_10px_#10b981]' : 
+                    momenData[momen.id] === 'hr' || momenData[momen.id] === 'hw' ? 'bg-blue-500 shadow-[0_0_10px_#10b981]' : 
                     momenData[momen.id] === 'miss' ? 'bg-red-500 shadow-[0_0_10px_#ef4444]' : 'bg-slate-500'
                   }`} />
                 )}
@@ -296,7 +336,7 @@ export default function HandHygieneAuditPage() {
                     onClick={() => handleActionClick(momen.id, 'hr')}
                     className={`py-3 px-2 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all border ${
                       momenData[momen.id] === 'hr' 
-                        ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.2)]' 
+                        ? 'bg-blue-600/20 text-blue-400 border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.2)]' 
                         : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'
                     }`}
                   >
@@ -307,7 +347,7 @@ export default function HandHygieneAuditPage() {
                     onClick={() => handleActionClick(momen.id, 'hw')}
                     className={`py-3 px-2 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all border ${
                       momenData[momen.id] === 'hw' 
-                        ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.2)]' 
+                        ? 'bg-blue-600/20 text-blue-400 border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.2)]' 
                         : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'
                     }`}
                   >
@@ -396,7 +436,7 @@ export default function HandHygieneAuditPage() {
                   initial={{ opacity: 0, height: 0, marginTop: 0 }}
                   animate={{ opacity: 1, height: 'auto', marginTop: 24 }}
                   exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                  className="w-full bg-red-500/10 border border-red-500/20 rounded-2xl p-4 text-left overflow-hidden"
+                  className="w-full bg-red-500/10 border border-red-500/20 rounded-2xl p-4 text-left overflow-hidden mb-2"
                 >
                   <div className="flex items-center gap-2 mb-2">
                     <AlertCircle className="w-4 h-4 text-red-400" />
@@ -410,50 +450,26 @@ export default function HandHygieneAuditPage() {
                 </motion.div>
               )}
             </AnimatePresence>
+
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting || !observer || !unit || !profesi || stats.peluang === 0}
+              className="mt-6 w-full px-8 py-4 rounded-2xl shadow-[0_0_15px_rgba(59,130,246,0.5)] text-[12px] font-bold uppercase tracking-[0.2em] text-white bg-blue-600 hover:bg-blue-500 focus:outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:animate-none  flex items-center justify-center gap-2 hover:scale-105"
+            >
+              {isSubmitting ? (
+                <div className="flex items-center gap-3">
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Menyimpan...
+                </div>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" /> Simpan
+                </>
+              )}
+            </button>
           </div>
         </div>
 
-      </div>
-
-      {/* Sticky Bottom Actions */}
-      <div className="fixed bottom-0 left-0 right-0 p-6 bg-navy-dark/80 backdrop-blur-2xl border-t border-white/5 lg:left-[260px] z-40">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row gap-4 justify-end">
-          <button
-            type="button"
-            onClick={() => {
-               setMomenData({ m1: null, m2: null, m3: null, m4: null, m5: null });
-               setStartTime(new Date());
-               setEndTime(null);
-            }}
-            className="px-6 py-4 rounded-2xl border border-white/10 text-xs font-bold uppercase tracking-widest text-slate-300 hover:bg-white/5 transition-all flex items-center justify-center gap-2"
-          >
-            <RefreshCw className="w-4 h-4" /> Reset
-          </button>
-          
-          <button
-            type="button"
-            className="px-6 py-4 rounded-2xl bg-white/5 border border-white/10 text-xs font-bold uppercase tracking-widest text-blue-400 hover:bg-white/10 transition-all flex items-center justify-center gap-2"
-          >
-            <FileEdit className="w-4 h-4" /> Simpan Draft
-          </button>
-
-          <button
-            onClick={handleSubmit}
-            disabled={isSubmitting || !observer || !unit || !profesi || stats.peluang === 0}
-            className="px-8 py-4 rounded-2xl shadow-lg shadow-blue-600/30 text-xs font-bold uppercase tracking-[0.2em] text-white bg-blue-600 hover:bg-blue-500 focus:outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 sm:min-w-[240px]"
-          >
-            {isSubmitting ? (
-              <div className="flex items-center gap-3">
-                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Menyimpan...
-              </div>
-            ) : (
-              <>
-                <Save className="w-4 h-4" /> Submit Data
-              </>
-            )}
-          </button>
-        </div>
       </div>
     </div>
   );

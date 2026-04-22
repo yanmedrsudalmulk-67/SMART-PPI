@@ -1,183 +1,293 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { DocumentationUploader, DocImage } from '@/components/DocumentationUploader';
 import { 
   ArrowLeft, 
   Save, 
-  CheckCircle2,
-  UploadCloud,
-  FileText,
-  X
+  CheckCircle2, 
+  Clock, 
+  MapPin, 
+  UserSquare, 
+  Users, 
+  BookOpen, 
+  Camera, 
+  Upload, 
+  Trash2, 
+  X, 
+  RefreshCw 
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Link from 'next/link';
 
+const PESERTA_OPTIONS = [
+  'Dokter', 
+  'Dokter Spesialis', 
+  'Perawat', 
+  'Bidan', 
+  'Analis Laboratorium',
+  'Radiografer', 
+  'Farmasi', 
+  'Pramusaji', 
+  'Pegawai Baru', 
+  'Cleaning Service', 
+  'Mahasiswa PKL'
+];
+
 export default function DiklatInputPage() {
   const router = useRouter();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showToast, setShowToast] = useState(false);
-  const [files, setFiles] = useState<File[]>([]);
+  
+  const [startTime, setStartTime] = useState<Date | null>(null);
+  const [tempat, setTempat] = useState('');
+  const [narasumber, setNarasumber] = useState('');
+  const [pesertaSelected, setPesertaSelected] = useState<string[]>([]);
+  const [materi, setMateri] = useState('');
+  
+  // Dokumentasi
+  const [images, setImages] = useState<DocImage[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      setFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      setStartTime(new Date());
+    });
+  }, []);
+
+  const addPeserta = (val: string) => {
+    if (!val) return;
+    if (!pesertaSelected.includes(val)) {
+      setPesertaSelected(prev => [...prev, val].sort());
     }
   };
 
-  const removeFile = (index: number) => {
-    setFiles(prev => prev.filter((_, i) => i !== index));
+  const removePeserta = (val: string) => {
+    setPesertaSelected(prev => prev.filter(p => p !== val));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Image compression Helper
+  
+  const dataURLToBlob = (dataURL: string) => {
+    const parts = dataURL.split(';base64,');
+    const contentType = parts[0].split(':')[1];
+    const raw = window.atob(parts[1]);
+    const rawLength = raw.length;
+    const uInt8Array = new Uint8Array(rawLength);
+    for (let i = 0; i < rawLength; ++i) {
+      uInt8Array[i] = raw.charCodeAt(i);
+    }
+    return new Blob([uInt8Array], { type: contentType });
+  };
+
+  
+  
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!tempat || !narasumber || pesertaSelected.length === 0 || !materi) {
+      alert('Harap lengkapi semua field wajib (Waktu, Tempat, Narasumber, Minimal 1 Peserta, dan Materi).');
+      return;
+    }
+
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setShowToast(true);
+    // Simulating database insert
+    try {
       setTimeout(() => {
-        setShowToast(false);
-        router.push('/dashboard/input');
-      }, 2000);
-    }, 2000);
+        setIsSubmitting(false);
+        setShowToast(true);
+        setTimeout(() => {
+          setShowToast(false);
+          router.push('/dashboard/input');
+        }, 2000);
+      }, 1500);
+    } catch (err) {
+      console.error(err);
+      alert('Gagal menyimpan data pelatihan.');
+      setIsSubmitting(false);
+    }
+  };
+
+  const getLocalIsoString = (val: Date | null) => {
+    if (!val) return '';
+    const tzoffset = val.getTimezoneOffset() * 60000;
+    return new Date(val.getTime() - tzoffset).toISOString().slice(0, 16);
   };
 
   return (
-    <div className="max-w-3xl mx-auto pb-24">
-      {/* Toast Notification */}
+    <div className="space-y-8 max-w-3xl mx-auto pb-24 px-4 sm:px-6 mt-4">
+      {/* Toast Notif */}
       <AnimatePresence>
         {showToast && (
-          <motion.div
-            initial={{ opacity: 0, y: -50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -50 }}
-            className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-emerald-500 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 font-medium"
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 20 }}
+            className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[100] bg-blue-600 text-white px-8 py-4 rounded-2xl shadow-2xl flex items-center gap-3 font-bold uppercase tracking-widest text-xs border border-white/20 text-center"
           >
-            <CheckCircle2 className="w-5 h-5" />
-            Data Diklat berhasil disimpan!
+            <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+            Data pelatihan berhasil disimpan
           </motion.div>
         )}
       </AnimatePresence>
 
       {/* Header */}
-      <div className="flex items-center gap-4 mb-6 sticky top-16 bg-slate-50/90 backdrop-blur-md py-4 z-10 -mx-4 px-4 sm:mx-0 sm:px-0">
-        <Link href="/dashboard/input" className="p-2 bg-white rounded-full shadow-sm border border-gray-200 text-text-muted hover:text-navy-dark transition-colors">
-          <ArrowLeft className="w-5 h-5" />
+      <div className="flex items-center gap-4 mb-6 relative py-4 z-10 border-b border-white/5">
+        <Link href="/dashboard/input" className="p-2.5 bg-white/5 rounded-xl border border-white/10 text-slate-400 hover:text-white hover:bg-white/10 transition-all">
+          <ArrowLeft className="w-4 h-4" />
         </Link>
         <div>
-          <h1 className="text-xl sm:text-2xl font-heading font-bold tracking-tight text-gradient">Pendidikan & Pelatihan</h1>
-          <p className="text-xs text-text-muted">Input data kegiatan diklat PPI</p>
+          <h1 className="text-[30px] font-heading font-bold tracking-tight text-gradient drop-shadow-[0_0_25px_rgba(59,130,246,0.5)]">Pendidikan & Pelatihan</h1>
+          <p className="text-[15px] font-bold uppercase tracking-[0.1em] text-blue-400 mt-1">Input Data Diklat PPI RS</p>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="sleek-card space-y-5">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-xs font-semibold text-text-muted mb-1.5 uppercase tracking-wider">Tanggal Kegiatan</label>
-              <input type="date" className="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" required />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-text-muted mb-1.5 uppercase tracking-wider">Tempat Pelaksanaan</label>
-              <input type="text" className="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" placeholder="Misal: Aula Utama RS" required />
-            </div>
-          </div>
+      <form onSubmit={handleSubmit} className="space-y-8">
+        
+        {/* KARTU FORM UTAMA */}
+        <div className="sleek-card p-6 sm:p-8 rounded-[2rem] shadow-xl space-y-8 relative overflow-hidden dark:border-white/5">
+          {/* subtle background gradient injection */}
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-blue-500/5 dark:bg-blue-500/10 blur-[100px] rounded-full pointer-events-none" />
+          <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-purple-500/5 dark:bg-purple-500/10 blur-[100px] rounded-full pointer-events-none" />
 
-          <div>
-            <label className="block text-xs font-semibold text-text-muted mb-1.5 uppercase tracking-wider">Materi Pelatihan</label>
-            <input type="text" className="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" placeholder="Judul materi..." required />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-            <div>
-              <label className="block text-xs font-semibold text-text-muted mb-1.5 uppercase tracking-wider">Narasumber</label>
-              <input type="text" className="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" placeholder="Nama Narasumber" required />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+          {/* WAKTU */}
+          <div className="space-y-4 relative z-10">
+            <h2 className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 font-heading">
+              <Clock className="w-4 h-4 text-purple-500 dark:text-purple-400" /> Waktu Pelaksanaan
+            </h2>
+            <div className="bg-slate-50 dark:bg-white/5 p-5 rounded-2xl border border-gray-200 dark:border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-inner">
               <div>
-                <label className="block text-xs font-semibold text-text-muted mb-1.5 uppercase tracking-wider">Jml Peserta</label>
-                <input type="number" min="1" className="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" placeholder="0" required />
+                <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-1 font-bold">Waktu Saat Ini</p>
+                <p className="text-base font-bold text-navy-dark dark:text-white font-heading tracking-wide">
+                  {startTime ? `${startTime.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '/')} – ${startTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}` : '-'}
+                </p>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-text-muted mb-1.5 uppercase tracking-wider">Unit Peserta</label>
-                <input type="text" className="w-full bg-slate-50 border border-gray-200 rounded-lg px-4 py-3 text-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all" placeholder="All Unit" required />
-              </div>
+              <input 
+                type="datetime-local" 
+                value={getLocalIsoString(startTime)}
+                onChange={(e) => setStartTime(new Date(e.target.value))}
+                className="bg-white dark:bg-navy-dark border border-gray-300 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-navy-dark dark:text-blue-400 outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all font-mono accent-blue-600"
+              />
             </div>
           </div>
-        </div>
 
-        {/* Upload Section */}
-        <div className="sleek-card">
-          <h2 className="font-bold text-navy-dark mb-4">Dokumentasi & Materi</h2>
-          
-          <div 
-            onClick={() => fileInputRef.current?.click()}
-            className="border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center hover:bg-slate-50 hover:border-primary transition-colors cursor-pointer"
-          >
-            <UploadCloud className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-            <p className="text-sm font-medium text-navy-dark">Klik atau Drag & Drop file di sini</p>
-            <p className="text-xs text-text-muted mt-1">Mendukung PDF, JPG, PNG (Max 10MB)</p>
-            <input 
-              type="file" 
-              multiple 
-              className="hidden" 
-              ref={fileInputRef}
-              onChange={handleFileChange}
+          <div className="grid sm:grid-cols-2 gap-8 relative z-10">
+            {/* TEMPAT */}
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                <MapPin className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" /> Tempat Pelatihan
+              </label>
+              <input 
+                type="text" 
+                value={tempat}
+                onChange={(e) => setTempat(e.target.value)}
+                placeholder="Masukkan lokasi kegiatan..."
+                className="w-full bg-slate-50 dark:bg-white/5 border border-gray-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-navy-dark dark:text-white outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-inner placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                required
+              />
+            </div>
+
+            {/* NARASUMBER */}
+            <div className="space-y-3">
+              <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+                <UserSquare className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" /> Narasumber
+              </label>
+              <input 
+                type="text" 
+                value={narasumber}
+                onChange={(e) => setNarasumber(e.target.value)}
+                placeholder="Masukkan nama narasumber..."
+                className="w-full bg-slate-50 dark:bg-white/5 border border-gray-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-navy-dark dark:text-white outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-inner placeholder:text-slate-400 dark:placeholder:text-slate-500"
+                required
+              />
+            </div>
+          </div>
+
+          {/* PESERTA PELATIHAN (MULTI-SELECT CHIPS) */}
+          <div className="space-y-3 relative z-10 pt-4 border-t border-gray-100 dark:border-white/5">
+            <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+              <Users className="w-3.5 h-3.5 text-purple-500 dark:text-purple-400" /> Peserta Pelatihan
+            </label>
+            
+            {/* Chips Container */}
+            {pesertaSelected.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                <AnimatePresence>
+                  {pesertaSelected.map(p => (
+                    <motion.div 
+                      key={p} 
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.8 }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30 text-blue-700 dark:text-blue-300 rounded-lg text-xs font-semibold tracking-wide shadow-sm"
+                    >
+                      {p}
+                      <button 
+                        type="button" 
+                        onClick={() => removePeserta(p)} 
+                        className="p-0.5 hover:bg-blue-100 dark:hover:bg-blue-500/20 text-blue-500 dark:text-blue-400 hover:text-blue-800 dark:hover:text-white border border-transparent rounded-md transition-all ml-1"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
+
+            {/* Dropdown Add Peserta */}
+            <select 
+              value=""
+              onChange={(e) => addPeserta(e.target.value)}
+              className="w-full bg-slate-50 dark:bg-white/5 border border-gray-200 dark:border-white/5 rounded-xl px-4 py-3 text-sm text-slate-600 dark:text-slate-400 outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-inner hover:bg-slate-100 dark:hover:bg-white/10"
+            >
+              <option value="">+ Tambah Grup Peserta...</option>
+              {PESERTA_OPTIONS.filter(o => !pesertaSelected.includes(o)).map(o => (
+                <option key={o} value={o} className="dark:bg-navy-dark dark:text-white bg-white text-navy-dark">{o}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* MATERI PELATIHAN */}
+          <div className="space-y-3 relative z-10 pt-4 border-t border-gray-100 dark:border-white/5">
+            <label className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+              <BookOpen className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400" /> Materi / Topik
+            </label>
+            <textarea 
+              value={materi}
+              onChange={(e) => setMateri(e.target.value)}
+              placeholder="Masukkan materi pelatihan secara lengkap..."
+              className="w-full h-32 bg-slate-50 dark:bg-white/5 border border-gray-200 dark:border-white/5 rounded-2xl px-4 py-3 text-sm text-navy-dark dark:text-white outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all shadow-inner placeholder:text-slate-400 dark:placeholder:text-slate-500 resize-none"
+              required
             />
           </div>
 
-          {files.length > 0 && (
-            <div className="mt-4 space-y-2">
-              {files.map((file, i) => (
-                <div key={i} className="flex items-center justify-between p-3 bg-slate-50 border border-gray-100 rounded-lg">
-                  <div className="flex items-center gap-3 overflow-hidden">
-                    <FileText className="w-5 h-5 text-primary shrink-0" />
-                    <span className="text-sm font-medium text-navy-dark truncate">{file.name}</span>
-                  </div>
-                  <button 
-                    type="button" 
-                    onClick={() => removeFile(i)}
-                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+          {/* DOKUMENTASI OVERHAUL */}
+          <div className="space-y-4 pt-4 border-t border-gray-100 dark:border-white/5 relative z-10 flex flex-col items-center">
+            <DocumentationUploader images={images} setImages={setImages} />
+          </div>
+          
         </div>
 
-        {/* Digital Signature Placeholder */}
-        <div className="sleek-card">
-          <h2 className="font-bold text-navy-dark mb-4">Tanda Tangan Digital</h2>
-          <div className="h-32 bg-slate-50 border border-gray-200 rounded-xl flex items-center justify-center">
-            <p className="text-sm text-text-muted">Area Tanda Tangan Narasumber / Panitia</p>
-          </div>
+        {/* TOMBOL SIMPAN */}
+        <div className="pt-2">
+          <button
+            type="submit"
+            disabled={isSubmitting || !tempat || !narasumber || pesertaSelected.length === 0 || !materi}
+            className="w-full flex justify-center items-center gap-3 py-4 bg-blue-600 hover:bg-blue-500 text-white text-[13px] font-bold uppercase tracking-[0.15em] rounded-[12px] shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] border border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed group"
+          >
+            {isSubmitting ? (
+              <RefreshCw className="w-5 h-5 animate-spin" />
+            ) : (
+              <Save className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            )}
+            <span>{isSubmitting ? 'Menyimpan...' : 'Simpan Data'}</span>
+          </button>
         </div>
 
-        {/* Submit Button */}
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 backdrop-blur-md border-t border-gray-200 sm:left-[260px] z-40">
-          <div className="max-w-3xl mx-auto">
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full flex justify-center items-center gap-2 py-3.5 px-4 rounded-xl shadow-lg text-sm font-bold text-white bg-primary hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all disabled:opacity-70"
-            >
-              {isSubmitting ? (
-                <div className="flex items-center gap-2">
-                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Menyimpan ke Database...
-                </div>
-              ) : (
-                <>
-                  <Save className="w-5 h-5" /> Simpan Data Pelatihan
-                </>
-              )}
-            </button>
-          </div>
-        </div>
       </form>
     </div>
   );
 }
+

@@ -14,6 +14,17 @@
   --color-glass-border: rgba(255, 255, 255, 0.1);
   
   --color-background: var(--color-navy-dark);
+
+  --animate-gradient: gradient-x 4s linear infinite;
+
+  @keyframes gradient-x {
+    0%, 100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
 }
 
 @layer utilities {
@@ -33,7 +44,7 @@
     box-shadow: 0 0 20px var(--color-secondary-glow);
   }
   .text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500;
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-purple-400 to-blue-400 bg-[length:200%_auto] animate-gradient;
   }
 }
 
@@ -61,7 +72,7 @@
 /* Light Mode Overrides */
 html.light body {
   background-color: #ffffff;
-  color: #0f172a;
+  color: #0F3D2E;
 }
 html.light .bg-navy-dark {
   background-color: #ffffff !important;
@@ -70,56 +81,259 @@ html.light .bg-navy-light {
   background-color: #f8fafc !important;
 }
 html.light .bg-navy-dark\/50 {
-  background-color: rgba(255, 255, 255, 0.8) !important;
-}
-html.light .bg-navy-light\/50 {
-  background-color: rgba(248, 250, 252, 0.8) !important;
-}
-html.light .bg-navy-light\/80 {
   background-color: rgba(255, 255, 255, 0.9) !important;
 }
+html.light .bg-navy-dark\/80 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+html.light .bg-navy-dark\/90 {
+  background-color: rgba(255, 255, 255, 0.98) !important;
+}
+html.light .bg-navy-light\/50 {
+  background-color: rgba(248, 250, 252, 0.9) !important;
+}
+html.light .bg-navy-light\/80 {
+  background-color: rgba(248, 250, 252, 0.95) !important;
+}
 html.light .text-white {
-  color: #0f172a !important;
+  color: #0F3D2E !important;
 }
-html.light .text-slate-200 {
-  color: #334155 !important;
-}
-html.light .text-slate-300 {
-  color: #475569 !important;
-}
-html.light .text-slate-400 {
-  color: #64748b !important;
-}
+html.light .text-slate-200 { color: #0A2F1D !important; }
+html.light .text-slate-300 { color: #0F3D2E !important; }
+html.light .text-slate-400 { color: rgba(15, 61, 46, 0.8) !important; }
+html.light .text-slate-500 { color: rgba(15, 61, 46, 0.6) !important; }
+html.light .text-slate-600 { color: rgba(15, 61, 46, 0.5) !important; }
+html.light .text-slate-700 { color: rgba(15, 61, 46, 0.4) !important; } /* placeholders */
+
 html.light .glass-card,
 html.light .bg-white\/5 {
-  background-color: #ffffff !important;
-  border-color: rgba(0, 0, 0, 0.05) !important;
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01) !important;
+  background-color: rgba(255, 255, 255, 1) !important;
+  border-color: rgba(15, 61, 46, 0.1) !important;
+  box-shadow: 0 10px 25px -5px rgba(15, 61, 46, 0.05), 0 8px 10px -6px rgba(15, 61, 46, 0.01) !important;
 }
 html.light .bg-white\/10 {
-  background-color: rgba(0, 0, 0, 0.04) !important;
+  background-color: rgba(255, 255, 255, 1) !important;
 }
-html.light .border-white\/5 {
-  border-color: rgba(0, 0, 0, 0.05) !important;
+html.light .hover\:bg-white\/5:hover {
+  background-color: rgba(241, 245, 249, 1) !important;
 }
-html.light .border-white\/10 {
-  border-color: rgba(0, 0, 0, 0.1) !important;
+html.light .hover\:bg-white\/10:hover {
+  background-color: rgba(226, 232, 240, 1) !important;
 }
+html.light .border-white\/5,
+html.light .border-white\/10,
 html.light .border-white\/20 {
-  border-color: rgba(0, 0, 0, 0.15) !important;
+  border-color: rgba(15, 61, 46, 0.15) !important;
 }
-/* Preserve colors for primary buttons/elements that should stay white text */
-html.light button.bg-blue-600 .text-white,
-html.light button.bg-blue-600 {
+
+/* Sidebar Specific Emerald Green Override for Light Mode */
+html.light .app-sidebar, html.light .app-mobile-nav {
+  background-color: #047857 !important; /* Lighter emerald #10b981 changed to darker #047857 */
+  border-color: #064e3b !important;
+}
+/* Sidebar Text & Top Header Fixes */
+html.light .app-sidebar .sidebar-title {
+  background: none !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  text-shadow: none !important;
+  opacity: 1 !important;
+}
+
+html.light .app-sidebar .text-slate-500,
+html.light .app-sidebar .text-slate-400,
+html.light .app-sidebar .text-white,
+html.light .app-sidebar p,
+html.light .app-sidebar span,
+html.light .app-sidebar svg,
+html.light .app-mobile-nav .text-slate-500,
+html.light .app-mobile-nav .text-slate-400,
+html.light .app-mobile-nav .text-white,
+html.light .app-mobile-nav span {
   color: #ffffff !important;
 }
-html.light .bg-blue-600 .text-white,
+html.light .app-sidebar .hover\:bg-white\/5:hover,
+html.light .app-mobile-nav .hover\:bg-white\/5:hover {
+  background-color: rgba(255, 255, 255, 0.15) !important;
+}
+html.light .app-sidebar .bg-white\/5 {
+  background-color: rgba(255, 255, 255, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.15) !important;
+}
+html.light .app-sidebar .text-gradient {
+  background-image: none !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+/* Re-fix links in sidebar to be white on active too unless they need to be distinct */
+html.light .app-sidebar .bg-blue-600\/10 {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  color: #ffffff !important;
+}
+html.light .app-sidebar .text-blue-400 {
+  color: #ffffff !important;
+}
+html.light .app-sidebar .bg-gradient-to-br {
+  background-image: linear-gradient(to bottom right, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.1)) !important;
+}
+
+/* Emerald Green & Blue Overrides for Light Mode */
+html.light .bg-blue-600, html.light .bg-primary { 
+  background-color: #2563eb !important; 
+  border-color: #2563eb !important; 
+  color: #ffffff !important; 
+}
+html.light .bg-blue-500 { 
+  background-color: #3b82f6 !important; 
+  border-color: #3b82f6 !important; 
+  color: #ffffff !important; 
+}
+html.light .hover\:bg-blue-600:hover { background-color: #1d4ed8 !important; }
+html.light .hover\:bg-blue-500:hover { background-color: #2563eb !important; }
+html.light .text-blue-400 { color: #2563eb !important; }
+html.light .text-blue-500 { color: #3b82f6 !important; }
+html.light .border-blue-500 { border-color: #3b82f6 !important; }
+html.light .border-blue-500\/50, html.light .border-blue-500\/30 { border-color: rgba(59, 130, 246, 0.5) !important; }
+html.light .bg-blue-600\/10, html.light .bg-blue-500\/20 { background-color: rgba(59, 130, 246, 0.1) !important; }
+html.light .shadow-blue-600\/20 { --tw-shadow-color: rgba(59, 130, 246, 0.2) !important; --tw-shadow: var(--tw-shadow-colored); }
+
+/* Purple maps to Emerald Green */
+html.light .bg-purple-600 { background-color: #10b981 !important; border-color: #10b981 !important; color: #ffffff !important; }
+html.light .text-purple-400 { color: #10b981 !important; }
+html.light .text-purple-300 { color: #059669 !important; }
+html.light .bg-purple-600\/10, html.light .bg-purple-500\/20, html.light .bg-purple-500\/5 { background-color: rgba(16, 185, 129, 0.1) !important; }
+html.light .hover\:text-purple-300:hover { color: #10b981 !important; }
+
+/* Global Animated Gradient for All Titles in Light Mode */
+html.light h1.font-heading,
+html.light h2.font-heading,
+html.light h3.font-heading,
+html.light h4.font-heading,
+html.light span.font-heading,
+html.light p.font-heading,
+html.light div.font-heading,
+html.light .text-gradient {
+  background-clip: text !important;
+  -webkit-background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  color: transparent !important;
+  background-image: linear-gradient(to right, #3b82f6, #10b981, #3b82f6) !important;
+  background-size: 200% auto !important;
+  animation: gradient-x 6s linear infinite !important;
+}
+
+/* Explicitly protect buttons and links from getting their text made transparent */
+html.light button.font-heading, 
+html.light a.font-heading,
+html.light a .font-heading,
+html.light button .font-heading {
+  background-image: none !important;
+  -webkit-text-fill-color: initial !important;
+  color: inherit !important;
+}
+
+/* Dashboard Specific Gradients and Shadows */
+html.light .shadow-\[0_0_15px_rgba\(59\,130\,246\,0\.1\)\] { box-shadow: 0 0 15px rgba(59, 130, 246, 0.15) !important; }
+html.light .shadow-\[0_0_25px_rgba\(59\,130\,246\,0\.5\)\] { box-shadow: 0 0 25px rgba(59, 130, 246, 0.4) !important; }
+html.light .from-blue-400 { --tw-gradient-from: #3b82f6 !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(59, 130, 246, 0)) !important; }
+html.light .to-purple-500 { --tw-gradient-to: #10b981 !important; }
+html.light .to-purple-500\/5 { --tw-gradient-to: rgba(16, 185, 129, 0.05) !important; }
+html.light .via-purple-400 { --tw-gradient-stops: var(--tw-gradient-from), #10b981, var(--tw-gradient-to, rgba(16, 185, 129, 0)) !important; }
+html.light .shadow-blue-500\/20 { --tw-shadow-color: rgba(59, 130, 246, 0.2) !important; --tw-shadow: var(--tw-shadow-colored) !important; }
+html.light .from-blue-600 { --tw-gradient-from: #2563eb !important; --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(37, 99, 235, 0)) !important; }
+
+/* Error Colors in Light Mode */
+html.light .text-red-400 { color: #dc2626 !important; }
+html.light .bg-red-500\/10 { background-color: rgba(220, 38, 38, 0.1) !important; }
+html.light .border-red-500\/20 { border-color: rgba(220, 38, 38, 0.2) !important; }
+
+/* Status Colors in Light Mode */
+html.light .text-emerald-400 { color: #059669 !important; }
+html.light .text-emerald-500 { color: #047857 !important; }
+html.light .text-amber-400 { color: #d97706 !important; }
+html.light .text-amber-500 { color: #b45309 !important; }
+html.light .text-indigo-400 { color: #4f46e5 !important; }
+html.light .text-indigo-500 { color: #4338ca !important; }
+html.light .text-green-400 { color: #16a34a !important; }
+
+/* Recharts SVG Overrides for Light Mode */
+html.light path[stroke="#3b82f6"], html.light path[stroke="#0088FE"] { stroke: #3b82f6 !important; }
+html.light path[stroke="#8b5cf6"], html.light path[stroke="#00C49F"] { stroke: #10b981 !important; }
+html.light path[stroke="#6366f1"], html.light path[stroke="#FFBB28"] { stroke: #2563eb !important; }
+html.light path[stroke="#a855f7"], html.light path[stroke="#FF8042"] { stroke: #059669 !important; }
+
+html.light path[fill="#3b82f6"], html.light path[fill="#0088FE"] { fill: #3b82f6 !important; }
+html.light path[fill="#8b5cf6"], html.light path[fill="#00C49F"] { fill: #10b981 !important; }
+html.light path[fill="#6366f1"], html.light path[fill="#FFBB28"] { fill: #2563eb !important; }
+html.light path[fill="#a855f7"], html.light path[fill="#FF8042"] { fill: #059669 !important; }
+
+html.light stop[stop-color="#3b82f6"] { stop-color: #3b82f6 !important; }
+html.light stop[stop-color="#8b5cf6"] { stop-color: #10b981 !important; }
+
+html.light .recharts-default-tooltip {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+  border-color: rgba(15, 61, 46, 0.1) !important;
+  box-shadow: 0 10px 25px -5px rgba(15, 61, 46, 0.1) !important;
+}
+html.light .recharts-tooltip-item-name, html.light .recharts-tooltip-item-value {
+  color: #0F3D2E !important;
+}
+
+/* Keep white text white on elements that explicitly need it */
+html.light button.from-blue-500 .text-white,
+html.light button.from-blue-600 .text-white,
+html.light button.from-blue-500,
+html.light button.from-blue-600,
+html.light .\!text-white {
+  color: #ffffff !important;
+}
+html.light .from-blue-500 .text-white,
+html.light .from-blue-600 .text-white,
+html.light .bg-purple-600.text-white,
+html.light .bg-blue-600.text-white,
+html.light .bg-indigo-600.text-white,
+html.light .from-blue-400 .text-white,
+html.light .from-blue-600.text-white,
+html.light .bg-red-600.text-white,
+html.light .bg-red-500.text-white,
+html.light .bg-emerald-500.text-white,
+html.light .bg-green-600.text-white,
+html.light .bg-slate-600.text-white {
+  color: #ffffff !important;
+}
+html.light .from-blue-500 .text-white,
 html.light .bg-purple-600 .text-white,
-html.light .bg-emerald-600 .text-white,
-html.light .bg-red-600 .text-white {
+html.light .bg-blue-600 .text-white,
+html.light .bg-red-600 .text-white,
+html.light .bg-emerald-500 .text-white {
   color: #ffffff !important;
 }
 html.light .text-navy-dark {
-  color: #0f172a !important;
+  color: #0A2F1D !important;
+}
+
+/* Hide Next.js Development & Static Indicators (Button "N") */
+#__next-build-watcher,
+#__next-prerender-indicator,
+.nextjs-portal,
+[data-nextjs-toast-wrapper],
+[data-nextjs-portal],
+[data-nextjs-indicator],
+[data-nextjs-static-indicator],
+[data-nextjs-indicator-wrapper],
+[data-nextjs-on-demand-entries-utils],
+[data-nextjs-static-indicator-wrapper],
+[data-nextjs-script-indicator],
+#dev-indicator,
+.dev-indicator,
+div[style*="position: fixed"][style*="bottom"][style*="left"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  width: 0 !important;
+  height: 0 !important;
+  z-index: -9999 !important;
 }
 

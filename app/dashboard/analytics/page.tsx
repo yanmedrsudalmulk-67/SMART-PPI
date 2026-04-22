@@ -49,7 +49,7 @@ export default function AnalyticsPage() {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-heading font-bold tracking-tight text-gradient">Analitik Mutu</h1>
+          <h1 className="text-2xl sm:text-3xl font-heading font-bold tracking-tight text-gradient drop-shadow-[0_0_25px_rgba(59,130,246,0.5)]">Analitik Mutu</h1>
           <p className="text-sm text-slate-500 mt-1">Analisa mendalam data PPI Rumah Sakit</p>
         </div>
         <div className="flex gap-2">
@@ -145,8 +145,8 @@ export default function AnalyticsPage() {
                 <tr>
                   <td className="py-3.5 border-b border-bg-gray font-medium text-navy-dark">ICU</td>
                   <td className="py-3.5 border-b border-bg-gray"><span className="text-red-600 font-bold">High (8.5)</span></td>
-                  <td className="py-3.5 border-b border-bg-gray text-emerald-600">92%</td>
-                  <td className="py-3.5 border-b border-bg-gray text-emerald-600">95%</td>
+                  <td className="py-3.5 border-b border-bg-gray text-blue-600">92%</td>
+                  <td className="py-3.5 border-b border-bg-gray text-blue-600">95%</td>
                   <td className="py-3.5 border-b border-bg-gray text-red-600">6.7‰</td>
                   <td className="py-3.5 border-b border-bg-gray"><span className="px-2 py-1 bg-red-100 text-red-700 rounded text-[11px] font-semibold">Perlu Supervisi</span></td>
                 </tr>
@@ -154,15 +154,15 @@ export default function AnalyticsPage() {
                   <td className="py-3.5 border-b border-bg-gray font-medium text-navy-dark">IGD</td>
                   <td className="py-3.5 border-b border-bg-gray"><span className="text-amber-600 font-bold">Medium (5.2)</span></td>
                   <td className="py-3.5 border-b border-bg-gray text-amber-600">85%</td>
-                  <td className="py-3.5 border-b border-bg-gray text-emerald-600">90%</td>
-                  <td className="py-3.5 border-b border-bg-gray text-emerald-600">0.3‰</td>
+                  <td className="py-3.5 border-b border-bg-gray text-blue-600">90%</td>
+                  <td className="py-3.5 border-b border-bg-gray text-blue-600">0.3‰</td>
                   <td className="py-3.5 border-b border-bg-gray"><span className="px-2 py-1 bg-amber-100 text-amber-700 rounded text-[11px] font-semibold">Monitoring</span></td>
                 </tr>
                 <tr>
                   <td className="py-3.5 border-b border-bg-gray font-medium text-navy-dark">OK</td>
-                  <td className="py-3.5 border-b border-bg-gray"><span className="text-emerald-600 font-bold">Low (2.1)</span></td>
-                  <td className="py-3.5 border-b border-bg-gray text-emerald-600">96%</td>
-                  <td className="py-3.5 border-b border-bg-gray text-emerald-600">98%</td>
+                  <td className="py-3.5 border-b border-bg-gray"><span className="text-blue-600 font-bold">Low (2.1)</span></td>
+                  <td className="py-3.5 border-b border-bg-gray text-blue-600">96%</td>
+                  <td className="py-3.5 border-b border-bg-gray text-blue-600">98%</td>
                   <td className="py-3.5 border-b border-bg-gray text-amber-600">1.5‰</td>
                   <td className="py-3.5 border-b border-bg-gray"><span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-[11px] font-semibold">Aman</span></td>
                 </tr>

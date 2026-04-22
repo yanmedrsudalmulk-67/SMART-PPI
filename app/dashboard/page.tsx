@@ -1,18 +1,18 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   TrendingUp, 
   TrendingDown, 
   AlertCircle, 
   CheckCircle2, 
   Activity,
-  Plus,
   FileSpreadsheet,
   Stethoscope,
-  ShieldAlert
+  ShieldAlert,
+  ChevronRight
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   AreaChart, 
   Area, 
@@ -44,62 +44,259 @@ const haisData = [
 ];
 
 export default function DashboardOverview() {
+  const [stats, setStats] = useState({
+    hh: 0,
+    apd: 0,
+    fasilitasApd: 0,
+    lingkungan: 0,
+    limbahMedis: 0,
+    limbahTajam: 0,
+    linen: 0,
+    farmasi: 0,
+    hais: { phlebitis: 0, isk: 0, ido: 0, vap: 0 }
+  });
+  const [activeCard, setActiveCard] = useState(0);
+
+  useEffect(() => {
+    let mounted = true;
+    const fetchStats = async () => {
+      try {
+        const { getSupabase } = await import('@/lib/supabase');
+        const supabase = getSupabase();
+
+        // 1. Hand Hygiene
+        const { data: hhData } = await supabase.from('audit_hand_hygiene').select('patuh, peluang');
+        let hhSumPatuh = 0, hhSumPeluang = 0;
+        if (hhData) {
+          hhData.forEach(d => { hhSumPatuh += (d.patuh || 0); hhSumPeluang += (d.peluang || 0); });
+        }
+        const hhPct = hhSumPeluang > 0 ? Math.round((hhSumPatuh / hhSumPeluang) * 100) : 0;
+
+        // 2. Kepatuhan APD (Usage)
+        const { data: apdData } = await supabase.from('audit_apd').select('jumlah_patuh, jumlah_dinilai');
+        let apdSumPatuh = 0, apdSumDinilai = 0;
+        if (apdData) {
+          apdData.forEach(d => {
+            apdSumPatuh += (d.jumlah_patuh || 0);
+            apdSumDinilai += (d.jumlah_dinilai || 0);
+          });
+        }
+        const apdPct = apdSumDinilai > 0 ? Math.round((apdSumPatuh / apdSumDinilai) * 100) : 0;
+
+        // 2b. Fasilitas APD (Availability)
+        const { data: fasApdData } = await supabase.from('monitoring_fasilitas_apd').select('persentase');
+        let fasApdSum = 0;
+        if (fasApdData && fasApdData.length > 0) {
+          fasApdData.forEach(d => { fasApdSum += (d.persentase || 0); });
+          fasApdSum = Math.round(fasApdSum / fasApdData.length);
+        }
+
+        // 3. Pengendalian Lingkungan
+        const { data: envData } = await supabase.from('audit_pengendalian_lingkungan').select('persentase');
+        let envSum = 0;
+        if (envData && envData.length > 0) {
+          envData.forEach(d => { envSum += (d.persentase || 0); });
+          envSum = Math.round(envSum / envData.length);
+        }
+
+        // 4. Pengelolaan Limbah Medis
+        const { data: wasteData } = await supabase.from('audit_pengelolaan_limbah_medis').select('persentase');
+        let wasteSum = 0;
+        if (wasteData && wasteData.length > 0) {
+          wasteData.forEach(d => { wasteSum += (d.persentase || 0); });
+          wasteSum = Math.round(wasteSum / wasteData.length);
+        }
+
+        // 5. Pengelolaan Limbah Tajam
+        const { data: sharpData } = await supabase.from('audit_pengelolaan_limbah_tajam').select('persentase');
+        let sharpSum = 0;
+        if (sharpData && sharpData.length > 0) {
+          sharpData.forEach(d => { sharpSum += (d.persentase || 0); });
+          sharpSum = Math.round(sharpSum / sharpData.length);
+        }
+
+        // 6. Penatalaksanaan Linen
+        const { data: linenData } = await supabase.from('audit_penatalaksanaan_linen').select('persentase');
+        let linenSum = 0;
+        if (linenData && linenData.length > 0) {
+          linenData.forEach(d => { linenSum += (d.persentase || 0); });
+          linenSum = Math.round(linenSum / linenData.length);
+        }
+
+        // 7. HAIs Fallback (Mocked / real if table available)
+        let haisStats = { phlebitis: 0, isk: 0, ido: 0, vap: 0 };
+        try {
+          const { data: haisData } = await supabase.from('insiden_hais').select('*');
+          if (haisData) {
+            haisData.forEach(d => {
+              const type = String(d.jenis).toLowerCase();
+              if (type.includes('phlebitis')) haisStats.phlebitis = d.rate || 0;
+              if (type.includes('isk')) haisStats.isk = d.rate || 0;
+              if (type.includes('ido')) haisStats.ido = d.rate || 0;
+              if (type.includes('vap')) haisStats.vap = d.rate || 0;
+            });
+          }
+        } catch(e) {}
+
+        // 8. Farmasi
+        let farmasiPct = 0;
+        try {
+          const { data: farmasiData } = await supabase.from('audit_farmasi').select('persentase');
+          if (farmasiData && farmasiData.length > 0) {
+            let farmasiSum = 0;
+            farmasiData.forEach(d => { farmasiSum += (d.persentase || 0); });
+            farmasiPct = Math.round(farmasiSum / farmasiData.length);
+          }
+        } catch(e) {}
+
+        if (mounted) {
+          setStats({ 
+            hh: hhPct, 
+            apd: apdPct, 
+            fasilitasApd: fasApdSum,
+            lingkungan: envSum,
+            limbahMedis: wasteSum,
+            limbahTajam: sharpSum,
+            linen: linenSum,
+            farmasi: farmasiPct,
+            hais: haisStats 
+          });
+        }
+      } catch (e) {
+        console.log('Skipped stats sync');
+      }
+    };
+
+    fetchStats();
+    return () => { mounted = false; };
+  }, []);
+
+  const cards = [
+    { 
+      type: 'single',
+      title: 'Kepatuhan Hand Hygiene', 
+      value: `${stats.hh}%`, 
+      color: 'text-blue-400', 
+      glow: 'glow-blue',
+      barColor: 'from-blue-400 to-purple-500',
+      pct: stats.hh
+    },
+    { 
+      type: 'single',
+      title: 'Kepatuhan Penggunaan APD', 
+      value: `${stats.apd}%`, 
+      color: 'text-purple-400', 
+      glow: 'glow-purple',
+      barColor: 'from-purple-400 to-emerald-500',
+      pct: stats.apd
+    },
+    { 
+      type: 'multi',
+      title: 'Insiden Rate HAIs', 
+      glow: 'glow-red',
+      color: 'text-red-400',
+      metrics: [
+        { label: 'Phlebitis', val: `${stats.hais.phlebitis}‰` },
+        { label: 'ISK', val: `${stats.hais.isk}‰` },
+        { label: 'IDO', val: `${stats.hais.ido}‰` },
+        { label: 'VAP', val: `${stats.hais.vap}‰` },
+      ]
+    }
+  ];
+
+  const nextCard = () => {
+    setActiveCard((prev) => (prev === cards.length - 1 ? 0 : prev + 1));
+  };
+
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-6">
         <div>
-          <h1 className="text-3xl sm:text-4xl font-heading font-bold tracking-tight text-gradient">Dashboard Mutu PPI</h1>
-          <p className="text-sm text-slate-500 mt-2 font-medium">Ringkasan performa pencegahan infeksi RSUD Nasional</p>
-        </div>
-        <div className="flex gap-3">
-          <button className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white/5 border border-white/10 text-slate-300 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-white/10 transition-all shadow-xl">
-            <FileSpreadsheet className="w-4 h-4 text-blue-400" />
-            Export
-          </button>
-          <button className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-blue-500 transition-all shadow-lg shadow-blue-600/20">
-            <Plus className="w-4 h-4" />
-            Audit Baru
-          </button>
+          <h1 className="text-[30px] font-heading font-bold not-italic tracking-tight text-gradient drop-shadow-[0_0_25px_rgba(59,130,246,0.5)]">Dashboard SMART PPI</h1>
+          <p className="text-[17px] md:text-[18px] text-slate-500 mt-2 font-medium flex flex-col md:block leading-relaxed w-full sm:tracking-normal">
+            <span>Pencegahan dan Pengendalian Infeksi</span>
+            <span className="md:ml-1">di UOBK RSUD AL-MULK Kota Sukabumi</span>
+          </p>
         </div>
       </div>
 
-      {/* KPI Cards - Horizontal scroll on mobile */}
-      <div className="flex overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-6 snap-x hide-scrollbar">
-        {[
-          { title: 'Kepatuhan Hand Hygiene', value: '89.4%', trend: '+2.1%', isUp: true, color: 'text-blue-400', glow: 'glow-blue' },
-          { title: 'Kepatuhan APD', value: '92.1%', trend: '+1.5%', isUp: true, color: 'text-purple-400', glow: 'glow-purple' },
-          { title: 'Bundle Compliance', value: '85.0%', trend: '-0.5%', isUp: false, color: 'text-amber-400', glow: '' },
-          { title: 'HAIs Rate (Overall)', value: '1.2‰', trend: '-0.2‰', isUp: true, color: 'text-blue-400', glow: 'glow-blue' },
-        ].map((kpi, i) => (
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.1 }}
-            key={i} 
-            className={`glass-card p-6 min-w-[260px] sm:min-w-0 snap-center shrink-0 flex flex-col gap-4 rounded-[24px] hover:border-white/20 transition-all ${kpi.glow}`}
-          >
-            <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">{kpi.title}</p>
-            <div className="flex items-end justify-between">
-              <h3 className="text-3xl font-heading font-bold text-white">{kpi.value}</h3>
-              <div className={`flex items-center text-[10px] font-bold uppercase tracking-wider ${kpi.isUp ? 'text-blue-400' : 'text-red-400'}`}>
-                {kpi.isUp ? <TrendingUp className="w-3 h-3 mr-1" /> : <TrendingDown className="w-3 h-3 mr-1" />}
-                {kpi.trend}
-              </div>
+      {/* KPI Cards - Desktop (Grid) & Mobile (1 centered) */}
+      <div className="relative">
+        <div className="hidden sm:grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {cards.map((c, i) => (
+            <div key={i} className={`glass-card p-6 flex flex-col gap-4 rounded-[24px] border-white/5 transition-all ${c.glow}`}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 h-[30px]">{c.title}</p>
+              {c.type === 'single' ? (
+                <>
+                  <h3 className="text-3xl font-heading font-bold text-white">{c.value}</h3>
+                  <div className="w-full bg-white/5 h-1.5 rounded-full mt-2 overflow-hidden">
+                    <div className={`h-full bg-gradient-to-r ${c.barColor}`} style={{ width: `${c.pct}%` }} />
+                  </div>
+                </>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 mt-2">
+                  {c.metrics?.map(m => (
+                    <div key={m.label} className="bg-white/5 rounded-xl p-2 border border-white/5">
+                      <p className="text-[9px] uppercase tracking-widest text-slate-500 mb-0.5">{m.label}</p>
+                      <p className="text-sm font-bold text-white">{m.val}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            <div className="w-full bg-white/5 h-1 rounded-full mt-2 overflow-hidden">
-              <div className={`h-full bg-gradient-to-r from-blue-500 to-purple-600`} style={{ width: kpi.value.replace('%', '').replace('‰', '') + '%' }} />
-            </div>
-          </motion.div>
-        ))}
+          ))}
+        </div>
+
+        {/* Mobile Carousel View */}
+        <div className="sm:hidden relative w-full overflow-hidden">
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={activeCard}
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              transition={{ duration: 0.2 }}
+              className={`glass-card p-6 flex flex-col gap-4 rounded-[24px] border-white/5 ${cards[activeCard].glow} min-h-[180px] relative`}
+            >
+              <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">{cards[activeCard].title}</p>
+              {cards[activeCard].type === 'single' ? (
+                <>
+                  <h3 className="text-4xl font-heading font-bold text-white">{cards[activeCard].value}</h3>
+                  <div className="w-full bg-white/5 h-1.5 rounded-full mt-2 overflow-hidden">
+                    <div className={`h-full bg-gradient-to-r ${cards[activeCard].barColor}`} style={{ width: `${cards[activeCard].pct}%` }} />
+                  </div>
+                </>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 mt-2 pr-12">
+                  {cards[activeCard].metrics?.map(m => (
+                    <div key={m.label} className="bg-white/5 rounded-xl p-3 flex flex-col border border-white/5">
+                      <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">{m.label}</p>
+                      <p className="text-lg font-bold text-white">{m.val}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Pulsing Next Button inside the card for Mobile */}
+              <button 
+                onClick={nextCard}
+                className="absolute bottom-5 right-5 w-10 h-10 bg-white/10 hover:bg-white/20 border border-white/10 flex items-center justify-center rounded-full text-white cursor-pointer z-10 animate-[pulse_1.5s_ease-in-out_infinite] shadow-[0_0_15px_rgba(255,255,255,0.1)] transition-colors"
+                aria-label="Next Card"
+              >
+                <ChevronRight className="w-5 h-5 ml-0.5" />
+              </button>
+            </motion.div>
+          </AnimatePresence>
+        </div>
       </div>
 
       {/* Quick Actions */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Input HAIs', icon: Activity, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+          { label: 'Input HAIs', icon: Activity, color: 'text-blue-400', bg: 'bg-gradient-to-r from-blue-400 to-purple-500/10' },
           { label: 'Supervisi', icon: ShieldAlert, color: 'text-purple-400', bg: 'bg-purple-500/10' },
-          { label: 'Edukasi', icon: Stethoscope, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+          { label: 'Edukasi', icon: Stethoscope, color: 'text-blue-400', bg: 'bg-gradient-to-r from-blue-400 to-purple-500/10' },
           { label: 'Laporan', icon: FileSpreadsheet, color: 'text-purple-400', bg: 'bg-purple-500/10' },
         ].map((action, i) => (
           <button key={i} className="flex flex-col items-center justify-center p-6 glass-card rounded-[24px] border-white/5 hover:border-white/20 transition-all group">
@@ -154,7 +351,7 @@ export default function DashboardOverview() {
         <div className="glass-card p-8 rounded-[32px]">
           <div className="flex items-center justify-between mb-8">
             <h3 className="font-heading font-bold text-white tracking-wide">Insiden HAIs per Unit (‰)</h3>
-            <button className="text-[10px] font-bold uppercase tracking-widest text-blue-400 hover:text-blue-300 transition-colors">Lihat Detail</button>
+            <button className="text-[10px] font-bold uppercase tracking-widest text-blue-400 hover:text-purple-300 transition-colors">Lihat Detail</button>
           </div>
           <div className="h-[300px] w-full">
             <ResponsiveContainer width="100%" height="100%">
@@ -178,8 +375,8 @@ export default function DashboardOverview() {
       </div>
 
       {/* AI Recommendations */}
-      <div className="relative p-8 rounded-[32px] glass-card border-blue-500/20 bg-gradient-to-br from-blue-600/10 to-purple-600/10 overflow-hidden">
-        <div className="absolute top-[-50%] right-[-10%] w-[40%] h-[100%] bg-blue-500/10 blur-[100px] rounded-full" />
+      <div className="relative p-8 rounded-[32px] glass-card border-blue-500/20 bg-gradient-to-br from-blue-500/10 to-purple-500/10 overflow-hidden">
+        <div className="absolute top-[-50%] right-[-10%] w-[40%] h-[100%] bg-gradient-to-r from-blue-400 to-purple-500/10 blur-[100px] rounded-full" />
         <div className="flex items-start gap-6 relative z-10">
           <div className="bg-blue-600/20 p-4 rounded-2xl border border-blue-500/20 shadow-lg glow-blue">
             <AlertCircle className="w-8 h-8 text-blue-400" />

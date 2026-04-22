@@ -56,12 +56,12 @@ export default function LoginPage() {
           animate={{ opacity: 1, y: 0 }}
           className="flex justify-center"
         >
-          <div className="mb-2">
-            <AppLogo className="w-16 h-16" iconClassName="w-10 h-10" />
+          <div className="mb-0">
+            <AppLogo className="w-20 h-20" iconClassName="w-12 h-12" />
           </div>
         </motion.div>
-        <h2 className="mt-6 text-center text-3xl font-heading font-bold text-white tracking-widest uppercase">
-          SMART-PPI
+        <h2 className="mt-1.5 text-center text-3xl font-heading font-bold text-white tracking-widest uppercase">
+          SMART PPI
         </h2>
         <p className="mt-2 text-center text-[10px] font-bold uppercase tracking-[0.3em] text-slate-500">
           Silakan masuk ke akun Anda
@@ -156,17 +156,24 @@ export default function LoginPage() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full flex justify-center items-center gap-2 py-4 px-4 rounded-2xl shadow-lg shadow-blue-600/20 text-[10px] font-bold uppercase tracking-[0.2em] text-white bg-blue-600 hover:bg-blue-500 focus:outline-none transition-all disabled:opacity-70"
+                className="w-full flex justify-center items-center gap-2 py-4 px-4 rounded-2xl shadow-lg shadow-blue-600/20 text-[10px] font-bold uppercase tracking-[0.2em] text-white bg-blue-600 hover:bg-blue-500 focus:outline-none transition-all disabled:opacity-70 group"
               >
-                {isLoading ? 'Memproses...' : 'Masuk Sistem'}
-                {!isLoading && <ArrowRight className="w-4 h-4" />}
+                {isLoading ? 'Memproses...' : 'Masuk'}
+                {!isLoading && (
+                  <motion.div 
+                    animate={{ x: [0, 6, 0], scale: [1, 1.1, 1] }} 
+                    transition={{ repeat: Infinity, duration: 1.2, ease: "easeInOut" }}
+                  >
+                    <ArrowRight className="w-4 h-4 ml-1" />
+                  </motion.div>
+                )}
               </button>
             </div>
             
             {role === 'IPCLN' && (
               <div className="mt-6 text-center text-[10px] font-bold uppercase tracking-widest">
                 <span className="text-slate-600">Belum punya akun? </span>
-                <Link href="/register" className="text-blue-400 hover:text-blue-300 transition-colors">
+                <Link href="/register" className="text-blue-400 hover:text-purple-300 transition-colors">
                   Daftar di sini
                 </Link>
               </div>

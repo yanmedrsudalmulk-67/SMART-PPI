@@ -18,7 +18,7 @@ const inputModules = [
     title: 'Kewaspadaan Isolasi',
     desc: 'Audit Kewaspadaan Standar & Transmisi',
     icon: ShieldAlert,
-    color: 'text-emerald-500',
+    color: 'text-blue-500',
     bg: 'bg-emerald-50',
     href: '/dashboard/input/isolasi',
     dataCount: 142,
@@ -40,8 +40,8 @@ const inputModules = [
     title: 'Monitoring Bundles',
     desc: 'Checklist kepatuhan bundles HAIs',
     icon: ClipboardCheck,
-    color: 'text-teal-500',
-    bg: 'bg-teal-50',
+    color: 'text-blue-500',
+    bg: 'bg-blue-50',
     href: '/dashboard/input/bundles',
     dataCount: 86,
     status: '92% Patuh'
@@ -49,7 +49,7 @@ const inputModules = [
   {
     id: 'diklat',
     title: 'Pendidikan & Pelatihan',
-    desc: 'Input data pelatihan PPI',
+    desc: 'Input Data Pendidikan dan Pelatihan PPI',
     icon: GraduationCap,
     color: 'text-blue-500',
     bg: 'bg-blue-50',
@@ -63,8 +63,8 @@ export default function InputPage() {
   return (
     <div className="space-y-8">
       <div className="mb-12">
-        <h1 className="text-3xl sm:text-4xl font-heading font-bold tracking-tight text-gradient">Input Data SMART-PPI</h1>
-        <p className="text-sm text-slate-500 mt-2 font-medium">Silakan pilih modul input data yang ingin diisi.</p>
+        <h1 className="text-3xl sm:text-4xl font-heading font-bold tracking-tight text-gradient drop-shadow-[0_0_25px_rgba(59,130,246,0.5)]">Input Data SMART PPI</h1>
+        <p className="text-sm text-slate-500 mt-2 font-medium">Silahkan pilih menu input data yang ingin diisi</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">

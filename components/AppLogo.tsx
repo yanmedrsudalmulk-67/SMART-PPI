@@ -9,12 +9,13 @@ interface AppLogoProps {
 }
 
 export function AppLogo({ className = "w-10 h-10", iconClassName = "w-6 h-6" }: AppLogoProps) {
-  const { logoUrl } = useAppContext();
+  const { appLogoUrl } = useAppContext();
   
-  if (logoUrl) {
+  if (appLogoUrl) {
     return (
       <div className={`flex items-center justify-center overflow-hidden rounded-2xl ${className}`}>
-        <img src={logoUrl} alt="App Logo" className="w-full h-full object-contain" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={appLogoUrl} alt="App Logo" className="w-full h-full object-contain" />
       </div>
     );
   }
