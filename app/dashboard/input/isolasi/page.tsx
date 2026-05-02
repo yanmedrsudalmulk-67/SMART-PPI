@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { LiveStatisticsCard } from '@/components/LiveStatisticsCard';
 import { 
-  ArrowLeft, 
+  Save, RefreshCw, ArrowLeft, 
   ShieldCheck,
   ShieldAlert,
   Activity,
@@ -44,7 +45,7 @@ const standarIndicators = [
 
 const transmisiIndicators = [
   { id: 'ruang_isolasi', title: 'Ruang Isolasi', desc: 'Audit fasilitas dan kepatuhan prosedur di dalam ruang isolasi.', icon: Home },
-  { id: 'isolasi_ppi', title: 'PPI di Ruang Isolasi', desc: 'Kepatuhan petugas dan pengunjung di ruang isolasi.', icon: ShieldAlert },
+  { id: 'isolasi', title: 'PPI di Ruang Isolasi', desc: 'Kepatuhan petugas dan pengunjung di ruang isolasi.', icon: ShieldAlert },
   { id: 'airborne', title: 'Penempatan Pasien Airborne', desc: 'Ruang tekanan negatif, exhaust fan, pintu tertutup.', icon: Wind },
   { id: 'immuno', title: 'Penempatan Pasien Immunocompromised', desc: 'Ruang tekanan positif, perlindungan maksimal.', icon: ShieldCheck },
 ];
@@ -92,7 +93,7 @@ export default function IsolasiInputPage() {
         <button
           onClick={() => setActiveTab('standar')}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${
-            activeTab === 'standar' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20' : 'text-slate-500 hover:text-slate-300'
+            activeTab === 'standar' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20' : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'
           }`}
         >
           <ShieldCheck className="w-4 h-4" /> Standar
@@ -103,7 +104,7 @@ export default function IsolasiInputPage() {
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${
-            activeTab === 'transmisi' ? 'bg-purple-600 text-white shadow-md shadow-purple-600/20' : 'text-slate-500 hover:text-slate-300'
+            activeTab === 'transmisi' ? 'bg-purple-600 text-white shadow-md shadow-purple-600/20' : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'
           }`}
         >
           <ShieldAlert className="w-4 h-4" /> Transmisi
@@ -114,7 +115,7 @@ export default function IsolasiInputPage() {
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-lg transition-all ${
-            activeTab === 'monitoring' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'text-slate-500 hover:text-slate-300'
+            activeTab === 'monitoring' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/20' : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'
           }`}
         >
           <Activity className="w-4 h-4" /> Monitoring
@@ -165,17 +166,15 @@ export default function IsolasiInputPage() {
                       ind.id === 'penempatan' ? "/dashboard/input/penempatan-pasien" :
                       ind.id === 'etika' ? "/dashboard/input/etika-batuk" :
                       ind.id === 'suntik' ? "/dashboard/input/penyuntikan-aman" :
-                      ind.id === 'ruang_isolasi' ? "/dashboard/input/ruang-isolasi" :
-                      ind.id === 'isolasi_ppi' ? "/dashboard/input/ppi-ruang-isolasi" :
-                      ind.id.startsWith('fasilitas') || ['ibs', 'cssd', 'laboratorium', 'radiologi', 'gizi', 'jenazah', 'ambulance', 'tps', 'tunggu', 'farmasi', 'airborne', 'immuno'].includes(ind.id) ? `/dashboard/input/monitoring-${ind.id}` :
+                      ind.id.startsWith('fasilitas') || ['ibs', 'cssd', 'laboratorium', 'radiologi', 'gizi', 'jenazah', 'ambulance', 'tps', 'tunggu', 'farmasi', 'ruang_isolasi', 'isolasi', 'airborne', 'immuno'].includes(ind.id) ? `/dashboard/input/monitoring-${ind.id}` :
                       "/dashboard/input/penatalaksanaan-linen"
                     } 
-                    className="flex items-center justify-center gap-2 w-full py-3.5 bg-gradient-to-r from-blue-500/10 to-blue-600/10 hover:from-blue-500 hover:to-blue-600 border border-blue-500/20 hover:border-blue-500 text-blue-400 hover:text-white text-[11px] font-bold uppercase tracking-[0.2em] rounded-2xl transition-all duration-300 hover:-translate-y-1 relative group overflow-hidden shadow-lg shadow-blue-500/5 hover:shadow-blue-500/25 active:scale-95"
+                    className="flex items-center justify-center gap-2 w-full py-4 bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold uppercase tracking-[0.2em] rounded-2xl transition-all duration-300 hover:-translate-y-1 relative group overflow-hidden shadow-[0_0_15px_rgba(37,99,235,0.4)] hover:shadow-[0_0_25px_rgba(37,99,235,0.6)] glow-blue active:scale-95"
                   >
                     {/* Shimmer effect */}
                     <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
-                    <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform duration-500" />
-                    Input Data
+                    <ClipboardCheck className="w-4 h-4" />
+                    INPUT DATA
                   </Link>
                 </div>
               </motion.div>

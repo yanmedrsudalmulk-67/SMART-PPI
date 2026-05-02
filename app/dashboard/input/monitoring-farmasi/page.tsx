@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { LiveStatisticsCard } from '@/components/LiveStatisticsCard';
 import { useRouter } from 'next/navigation';
 import { 
+  Activity,
   ArrowLeft, 
   Save, 
   CheckCircle2,
@@ -208,33 +210,50 @@ export default function FarmasiAuditPage() {
     try {
       const supabase = getSupabase();
       if (editObserverId) {
-        const { error } = await supabase.from('master_observers').update({ nama: newObserverName }).eq('id', editObserverId);
-        if (error) throw error;
-        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o));
+        if (!editObserverId.startsWith('local-')) {
+          await supabase.from('master_observers').update({ nama: newObserverName }).eq('id', editObserverId);
+        }
+        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o).sort((a,b) => a.nama.localeCompare(b.nama)));
       } else {
         const { data, error } = await supabase.from('master_observers').insert([{ nama: newObserverName }]).select();
-        if (error) throw error;
-        if (data && data.length > 0) {
+        if (!error && data && data.length > 0) {
           setObservers(prev => [...prev, data[0]].sort((a,b) => a.nama.localeCompare(b.nama)));
+        } else {
+          setObservers(prev => [...prev, { id: 'local-' + Date.now().toString(), nama: newObserverName }].sort((a,b) => a.nama.localeCompare(b.nama)));
         }
       }
       setNewObserverName('');
       setEditObserverId(null);
     } catch (err) {
-      console.error(err);
+      console.error('Save observer non-fatal fallback:', err);
+      // Fallback local update
+      if (editObserverId) {
+        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o).sort((a,b) => a.nama.localeCompare(b.nama)));
+      } else {
+        setObservers(prev => [...prev, { id: 'local-' + Date.now().toString(), nama: newObserverName }].sort((a,b) => a.nama.localeCompare(b.nama)));
+      }
+      setNewObserverName('');
+      setEditObserverId(null);
     }
   };
 
   const deleteObserver = async (id: string) => {
-    if (!confirm('Hapus supervisor ini?')) return;
+    if (!confirm('Hapus observer ini?')) return;
     try {
       const supabase = getSupabase();
-      const { error } = await supabase.from('master_observers').delete().eq('id', id);
-      if (error) throw error;
+      if (!id.startsWith('local-')) {
+        await supabase.from('master_observers').delete().eq('id', id);
+      }
       setObservers(prev => prev.filter(o => o.id !== id));
-      if (observer === id) setObserver('');
+      if (observer === (observers.find(o => o.id === id)?.nama)) {
+        setObserver('');
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Delete observer fallback:', err);
+      setObservers(prev => prev.filter(o => o.id !== id));
+      if (observer === (observers.find(o => o.id === id)?.nama)) {
+        setObserver('');
+      }
     }
   };
 
@@ -276,13 +295,15 @@ export default function FarmasiAuditPage() {
     const persentase = dinilai > 0 ? Math.round((patuh / dinilai) * 100) : 0;
     let status = 'Belum Dinilai';
     let color = 'text-slate-400';
+    let bg = 'bg-slate-500/10';
+    let strokeColor = 'rgba(148,163,184,1)';
     if (dinilai > 0) {
-      if (persentase >= 85) { status = 'Baik'; color = 'text-emerald-400'; }
-      else if (persentase >= 70) { status = 'Cukup'; color = 'text-amber-400'; }
-      else { status = 'Perlu Tindak Lanjut'; color = 'text-red-400'; }
+      if (persentase >= 85) { status = 'Baik'; color = 'text-emerald-400'; bg = 'bg-emerald-500/10'; strokeColor = '#34d399'; }
+      else if (persentase >= 70) { status = 'Cukup'; color = 'text-amber-400'; bg = 'bg-amber-500/10'; strokeColor = '#fbbf24'; }
+      else { status = 'Perlu Tindak Lanjut'; color = 'text-red-400'; bg = 'bg-red-500/10'; strokeColor = '#f87171'; }
     }
 
-    return { patuh, tidakPatuh, dinilai, persentase, status, color };
+    return { patuh, tidakPatuh, dinilai, persentase, status, color, bg, strokeColor };
   }, [data]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -303,8 +324,8 @@ export default function FarmasiAuditPage() {
     setIsSubmitting(true);
     try {
       const supabase = getSupabase();
-      const ttd_pj = sigPadPJ.current?.getTrimmedCanvas().toDataURL('image/png') || null;
-      const ttd_ipcn = sigPadIPCN.current?.getTrimmedCanvas().toDataURL('image/png') || null;
+      const ttd_pj = sigPadPJ.current?.getCanvas().toDataURL('image/png') || null;
+      const ttd_ipcn = sigPadIPCN.current?.getCanvas().toDataURL('image/png') || null;
 
       const uploadedUrls = await uploadImagesToSupabase(supabase, images, 'dokumentasi', 'audit-farmasi');
       const payload = {
@@ -321,7 +342,7 @@ export default function FarmasiAuditPage() {
       };
 
       const { error } = await supabase.from('audit_farmasi').insert([payload]);
-      if (error && error.code !== '42P01') throw error;
+      if (error) { console.error('Observer DB Error:', error); throw error; }
 
       setShowToast(true);
       setTimeout(() => {
@@ -513,7 +534,7 @@ export default function FarmasiAuditPage() {
                           >
                             <p className="text-xs text-slate-300 font-bold leading-relaxed line-clamp-2 md:line-clamp-none group-hover:text-white transition-colors">{item.label}</p>
                             <div className="flex flex-col sm:flex-row gap-4 items-center">
-                              <div className="flex bg-slate-900/50 p-1.5 rounded-2xl border border-white/5 w-full sm:w-[350px] overflow-hidden shadow-2xl">
+                              <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full shrink-0">
                                 {[
                                   { value: 'ya' as const, label: 'YA', color: 'bg-emerald-600 shadow-emerald-600/20' },
                                   { value: 'tidak' as const, label: 'TIDAK', color: 'bg-red-600 shadow-red-600/20' },
@@ -545,50 +566,15 @@ export default function FarmasiAuditPage() {
           </div>
         </div>
 
-        {/* SECTION 4: PERSENTASE OTOMATIS */}
-        <div className="glass-card p-8 sm:p-10 rounded-[3rem] border-white/5 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-blue-600/5 blur-[100px] -z-10 group-hover:bg-blue-600/10 transition-all" />
-          
-          <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
-            <div className="relative w-40 h-40 sm:w-48 sm:h-48 group-hover:scale-105 transition-transform duration-500">
-              <svg className="w-full h-full -rotate-90 drop-shadow-[0_0_15px_rgba(37,99,235,0.2)]" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="42" fill="transparent" className="stroke-white/5 stroke-[10]" />
-                <motion.circle 
-                  cx="50" cy="50" r="42" fill="transparent" 
-                  className={`stroke-[10] shadow-2xl transition-all duration-1000 ${stats.persentase >= 85 ? 'stroke-emerald-500' : stats.persentase >= 70 ? 'stroke-amber-500' : 'stroke-red-500'}`}
-                  strokeWidth="8"
-                  strokeDasharray={`${2 * Math.PI * 42}`}
-                  initial={{ strokeDashoffset: 2 * Math.PI * 42 }}
-                  animate={{ strokeDashoffset: (2 * Math.PI * 42) * (1 - stats.persentase / 100) }}
-                  strokeLinecap="round"
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className={`text-4xl sm:text-5xl font-black font-heading ${stats.color}`}>{stats.persentase}<span className="text-xl sm:text-2xl text-slate-600">%</span></span>
-                <span className="text-[8px] font-black uppercase tracking-[0.3em] text-slate-500 mt-1">Kepatuhan</span>
-              </div>
-            </div>
-
-            <div className="flex-1 grid grid-cols-2 gap-4 sm:gap-6 w-full">
-              {[
-                { label: 'Item Dinilai', value: stats.dinilai, icon: ClipboardCheck, color: 'text-blue-400', bg: 'bg-blue-400/10' },
-                { label: 'Status Audit', value: stats.status, icon: ShieldCheck, color: stats.color, bg: stats.persentase >= 85 ? 'bg-emerald-400/10' : stats.persentase >= 70 ? 'bg-amber-400/10' : 'bg-red-400/10', full: true },
-                { label: 'Patuh', value: stats.patuh, icon: CheckCircle2, color: 'text-emerald-400', bg: 'bg-emerald-400/10' },
-                { label: 'Tidak Patuh', value: stats.tidakPatuh, icon: AlertTriangle, color: 'text-red-400', bg: 'bg-red-400/10' },
-              ].map((item, i) => (
-                <div key={i} className={`p-5 rounded-3xl bg-white/5 border border-white/5 group-hover:border-white/10 transition-all ${item.full ? 'col-span-2' : ''}`}>
-                  <div className="flex items-center gap-3 mb-2">
-                    <div className={`p-2 rounded-xl ${item.bg}`}>
-                      <item.icon className={`w-3.5 h-3.5 ${item.color}`} />
-                    </div>
-                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-500">{item.label}</span>
-                  </div>
-                  <p className={`text-base sm:text-lg font-black uppercase tracking-widest ${item.color}`}>{item.value}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        {/* HASIL PERSENTASE STANDARDIZED */}
+        <LiveStatisticsCard 
+          totalDinilai={stats.dinilai}
+          totalPatuh={stats.patuh}
+          totalTidakPatuh={stats.dinilai - stats.patuh}
+          persentase={stats.persentase}
+          statusText={stats.status}
+          title="HASIL AUDIT FARMASI"
+        />
 
         {/* SECTION 5: TEMUAN & SECTION 6: REKOMENDASI */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -670,10 +656,22 @@ export default function FarmasiAuditPage() {
 
         {/* SECTION 9: SIMPAN DATA */}
         <div className="pt-8">
-          <button
+          <motion.button
             type="submit"
             disabled={isSubmitting}
-            className="w-full flex justify-center items-center gap-4 py-6 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-[0_20px_50px_rgba(59,130,246,0.3)] hover:shadow-[0_25px_60px_rgba(59,130,246,0.5)] text-white text-base font-black uppercase tracking-[0.3em] rounded-3xl transition-all duration-500 hover:-translate-y-2 group disabled:opacity-50 disabled:grayscale active:scale-95"
+            animate={{
+              boxShadow: [
+                "0 0 0 0 rgba(37, 99, 235, 0)",
+                "0 0 0 10px rgba(37, 99, 235, 0.2)",
+                "0 0 0 0 rgba(37, 99, 235, 0)"
+              ]
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="w-full flex justify-center items-center gap-4 py-5 bg-blue-600 hover:bg-blue-500 text-white text-base font-bold uppercase tracking-[0.2em] rounded-2xl transition-all border border-blue-400/30 group disabled:opacity-50 overflow-hidden relative shadow-[0_0_20px_rgba(37,99,235,0.4)] glow-blue"
           >
             {isSubmitting ? (
               <RefreshCw className="w-6 h-6 animate-spin" />
@@ -683,7 +681,7 @@ export default function FarmasiAuditPage() {
                 <span>Simpan Data</span>
               </>
             )}
-          </button>
+          </motion.button>
         </div>
       </form>
 

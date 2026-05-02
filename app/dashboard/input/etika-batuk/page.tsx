@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { LiveStatisticsCard } from '@/components/LiveStatisticsCard';
 import { useRouter } from 'next/navigation';
 import { 
+  Activity,
   ArrowLeft, 
   Save, 
   CheckCircle2,
@@ -50,6 +52,7 @@ type Observer = { id: string; nama: string };
 export default function EtikaBatukPage() {
   const router = useRouter();
   const { userRole } = useAppContext();
+  const isIPCN = userRole === 'IPCN' || userRole === 'Admin';
   
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [observer, setObserver] = useState('');
@@ -88,9 +91,19 @@ export default function EtikaBatukPage() {
       const supabase = getSupabase();
       const { data, error } = await supabase.from('master_observers').select('*').order('nama');
       if (error) throw error;
-      if (data) setObservers(data);
+      
+      const hasAdi = data?.some(s => s.nama === 'IPCN_Adi Tresa Purnama');
+      let finalData = data || [];
+      if (!hasAdi) {
+        finalData = [{ nama: 'IPCN_Adi Tresa Purnama' }, ...finalData];
+      }
+      setObservers(finalData);
+      if (finalData.length > 0 && !observer) {
+        setObserver(finalData[0].nama);
+      }
     } catch (err) {
       setObservers([{ id: '1', nama: 'IPCN_Adi Tresa Purnama' }]);
+      setObserver('IPCN_Adi Tresa Purnama');
     }
   };
 
@@ -99,21 +112,30 @@ export default function EtikaBatukPage() {
     try {
       const supabase = getSupabase();
       if (editObserverId) {
-        const { error } = await supabase.from('master_observers').update({ nama: newObserverName }).eq('id', editObserverId);
-        if (error) throw error;
-        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o));
+        if (!editObserverId.startsWith('local-')) {
+          await supabase.from('master_observers').update({ nama: newObserverName }).eq('id', editObserverId);
+        }
+        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o).sort((a,b) => a.nama.localeCompare(b.nama)));
       } else {
         const { data, error } = await supabase.from('master_observers').insert([{ nama: newObserverName }]).select();
-        if (error) throw error;
-        if (data && data.length > 0) {
+        if (!error && data && data.length > 0) {
           setObservers(prev => [...prev, data[0]].sort((a,b) => a.nama.localeCompare(b.nama)));
+        } else {
+          setObservers(prev => [...prev, { id: 'local-' + Date.now().toString(), nama: newObserverName }].sort((a,b) => a.nama.localeCompare(b.nama)));
         }
       }
       setNewObserverName('');
       setEditObserverId(null);
     } catch (err) {
-      console.error(err);
-      alert('Gagal menyimpan observer.');
+      console.error('Save observer non-fatal fallback:', err);
+      // Fallback local update
+      if (editObserverId) {
+        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o).sort((a,b) => a.nama.localeCompare(b.nama)));
+      } else {
+        setObservers(prev => [...prev, { id: 'local-' + Date.now().toString(), nama: newObserverName }].sort((a,b) => a.nama.localeCompare(b.nama)));
+      }
+      setNewObserverName('');
+      setEditObserverId(null);
     }
   };
 
@@ -121,13 +143,19 @@ export default function EtikaBatukPage() {
     if (!confirm('Hapus observer ini?')) return;
     try {
       const supabase = getSupabase();
-      const { error } = await supabase.from('master_observers').delete().eq('id', id);
-      if (error) throw error;
+      if (!id.startsWith('local-')) {
+        await supabase.from('master_observers').delete().eq('id', id);
+      }
       setObservers(prev => prev.filter(o => o.id !== id));
-      if (observer === id) setObserver('');
+      if (observer === (observers.find(o => o.id === id)?.nama)) {
+        setObserver('');
+      }
     } catch (err) {
-      console.error(err);
-      alert('Gagal menghapus observer.');
+      console.error('Delete observer fallback:', err);
+      setObservers(prev => prev.filter(o => o.id !== id));
+      if (observer === (observers.find(o => o.id === id)?.nama)) {
+        setObserver('');
+      }
     }
   };
 
@@ -145,6 +173,7 @@ export default function EtikaBatukPage() {
 
   
   const dataURLToBlob = (dataURL: string) => {
+    if (!dataURL || !dataURL.includes(';base64,')) return null;
     const parts = dataURL.split(';base64,');
     const contentType = parts[0].split(':')[1];
     const raw = window.atob(parts[1]);
@@ -170,8 +199,8 @@ export default function EtikaBatukPage() {
       const supabase = getSupabase();
 
       // Signature data URLs
-      const ttd_pj = sigPadPJ.current?.getTrimmedCanvas().toDataURL('image/png') || null;
-      const ttd_ipcn = sigPadIPCN.current?.getTrimmedCanvas().toDataURL('image/png') || null;
+      const ttd_pj = sigPadPJ.current?.getCanvas().toDataURL('image/png') || null;
+      const ttd_ipcn = sigPadIPCN.current?.getCanvas().toDataURL('image/png') || null;
 
       // Handle Image Uploads to Storage if needed, or just convert to base64/URL
       // For simplicity and matching other patterns, we'll store metadata
@@ -249,22 +278,19 @@ export default function EtikaBatukPage() {
           
           {/* WAKTU OBSERVASI */}
           <div className="space-y-4">
-            <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-500 font-heading">
-              <Clock className="w-4 h-4 text-blue-400" /> Waktu Audit
+            <h2 className="flex items-center gap-4 text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">
+              <Clock className="w-5 h-5 text-blue-400 shrink-0" /> Waktu Audit
             </h2>
-            <div className="bg-white/5 p-5 rounded-2xl border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-1 font-bold">Waktu Real-time</p>
-                <p className="text-base font-bold text-white font-heading tracking-wide">
-                  {startTime ? `${startTime.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '/')} – ${startTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}` : '-'}
-                </p>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">Tanggal & Waktu</label>
+                <input 
+                  type="datetime-local" 
+                  value={getLocalIsoString(startTime)}
+                  onChange={(e) => setStartTime(new Date(e.target.value))}
+                  className="w-full bg-navy-dark/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all appearance-none"
+                />
               </div>
-              <input 
-                type="datetime-local" 
-                value={getLocalIsoString(startTime)}
-                onChange={(e) => setStartTime(new Date(e.target.value))}
-                className="bg-navy-dark border border-white/10 rounded-xl px-4 py-3 text-sm text-blue-400 outline-none focus:border-blue-500/50 transition-all font-mono shadow-inner accent-blue-600"
-              />
             </div>
           </div>
 
@@ -275,7 +301,7 @@ export default function EtikaBatukPage() {
                 <h2 className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
                   <User className="w-3.5 h-3.5 text-blue-400" /> Supervisor
                 </h2>
-                {(userRole === 'IPCN' || userRole === 'Admin') && (
+                {isIPCN && (
                   <button 
                     type="button" 
                     onClick={() => setIsObserverModalOpen(true)}
@@ -289,11 +315,11 @@ export default function EtikaBatukPage() {
                 <select 
                   value={observer}
                   onChange={(e) => setObserver(e.target.value)}
-                  className="w-full bg-white/5 border border-white/5 rounded-2xl px-4 py-4 text-sm text-white outline-none focus:border-blue-500/50 appearance-none transition-all pr-10 hover:bg-white/8"
+                  className="w-full bg-white/5 border border-white/5 rounded-2xl px-4 py-4 text-sm text-white outline-none focus:border-blue-500/50 appearance-none transition-all pr-10 hover:bg-white/8 cursor-pointer"
                   required
                 >
                   <option value="" className="bg-navy-dark text-slate-400">Pilih Supervisor...</option>
-                  {observers.map(o => <option key={o.id} value={o.nama} className="bg-navy-dark">{o.nama}</option>)}
+                  {observers.map(o => <option key={o.id || o.nama} value={o.nama} className="bg-navy-dark">{o.nama}</option>)}
                 </select>
                 <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none group-hover:scale-110 transition-transform">
                   <Plus className="w-4 h-4 text-slate-500" />
@@ -423,12 +449,23 @@ export default function EtikaBatukPage() {
 
         {/* BUTTON SIMPAN */}
         <div className="pt-4">
-          <button
+          <motion.button
             type="submit"
             disabled={isSubmitting || !observer || !unit || materiSelected.length === 0 || sasaranSelected.length === 0}
-            className="w-full flex justify-center items-center gap-4 py-5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-[0_10px_30px_rgba(59,130,246,0.4)] hover:shadow-[0_15px_40px_rgba(59,130,246,0.6)] text-white text-base font-bold uppercase tracking-[0.2em] rounded-2xl transition-all hover:scale-[1.01] active:scale-[0.98] border border-white/10 relative overflow-hidden group disabled:opacity-50"
+            animate={{
+              boxShadow: [
+                "0 0 0 0 rgba(37, 99, 235, 0)",
+                "0 0 0 15px rgba(37, 99, 235, 0.3)",
+                "0 0 0 0 rgba(37, 99, 235, 0)"
+              ]
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="w-full flex justify-center items-center gap-4 py-5 bg-blue-600 hover:bg-blue-500 text-white text-base font-bold uppercase tracking-[0.2em] rounded-2xl transition-all border border-white/10 relative overflow-hidden group disabled:opacity-50 shadow-[0_0_20px_rgba(37,99,235,0.4)]"
           >
-            <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-1000 ease-in-out" />
             {isSubmitting ? (
               <RefreshCw className="w-5 h-5 animate-spin" />
             ) : (
@@ -437,7 +474,7 @@ export default function EtikaBatukPage() {
                 <span>Simpan Data</span>
               </>
             )}
-          </button>
+          </motion.button>
           <div className="flex flex-col items-center justify-center mt-6 text-slate-600 uppercase tracking-widest font-bold">
             <p className="text-[10px]">SMART-PPI | RSUD AL-MULK</p>
           </div>
@@ -474,25 +511,30 @@ export default function EtikaBatukPage() {
                   value={newObserverName}
                   onChange={(e) => setNewObserverName(e.target.value)}
                   placeholder="Nama Supervisor baru..."
-                  className="flex-1 bg-navy-dark border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-blue-500/50 shadow-inner"
+                  disabled={!isIPCN}
+                  className="flex-1 bg-navy-dark border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-blue-500/50 shadow-inner disabled:opacity-50"
                   onKeyDown={(e) => e.key === 'Enter' && saveObserver()}
                 />
-                <button 
-                  onClick={saveObserver}
-                  className="px-5 py-3 bg-blue-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-blue-500 transition-colors shadow-lg shadow-blue-500/20"
-                >
-                  {editObserverId ? <RefreshCw className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                </button>
+                {isIPCN && (
+                  <button 
+                    onClick={saveObserver}
+                    className="px-5 py-3 bg-blue-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-blue-500 transition-colors shadow-lg shadow-blue-500/20"
+                  >
+                    {editObserverId ? <RefreshCw className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                  </button>
+                )}
               </div>
 
               <div className="max-h-[350px] overflow-y-auto space-y-3 pr-2 custom-scrollbar">
                 {observers.map(o => (
-                  <div key={o.id} className="flex items-center justify-between p-4 bg-navy-dark/40 border border-white/5 rounded-2xl group hover:border-blue-500/20 transition-all hover:bg-navy-dark/60">
+                  <div key={o.id || o.nama} className="flex items-center justify-between p-4 bg-navy-dark/40 border border-white/5 rounded-2xl group hover:border-blue-500/20 transition-all hover:bg-navy-dark/60">
                     <span className="text-sm font-medium text-slate-300 group-hover:text-white transition-colors">{o.nama}</span>
-                    <div className="flex gap-2">
-                      <button onClick={() => { setNewObserverName(o.nama); setEditObserverId(o.id); }} className="p-2 text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all"><Edit2 className="w-4 h-4" /></button>
-                      <button onClick={() => deleteObserver(o.id)} className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"><Trash2 className="w-4 h-4" /></button>
-                    </div>
+                    {isIPCN && (
+                      <div className="flex gap-2">
+                        <button onClick={() => { setNewObserverName(o.nama); setEditObserverId(o.id); }} className="p-2 text-slate-500 hover:text-blue-400 hover:bg-blue-500/10 rounded-lg transition-all"><Edit2 className="w-4 h-4" /></button>
+                        <button onClick={() => deleteObserver(o.id)} className="p-2 text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

@@ -1,13 +1,9 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { LiveStatisticsCard } from '@/components/LiveStatisticsCard';
 import { useRouter } from 'next/navigation';
-import { DocumentationUploader, DocImage } from '@/components/DocumentationUploader';
-import { 
-  ArrowLeft, 
-  Save, 
-  CheckCircle2, 
-  Clock, 
+import { Activity, ArrowLeft, Save, CheckCircle2, Clock, 
   MapPin, 
   UserSquare, 
   Users, 
@@ -18,6 +14,7 @@ import {
   X, 
   RefreshCw 
 } from 'lucide-react';
+import { DocumentationUploader, DocImage } from '@/components/DocumentationUploader';
 import { motion, AnimatePresence } from 'motion/react';
 import Link from 'next/link';
 
@@ -71,6 +68,7 @@ export default function DiklatInputPage() {
   // Image compression Helper
   
   const dataURLToBlob = (dataURL: string) => {
+    if (!dataURL || !dataURL.includes(';base64,')) return null;
     const parts = dataURL.split(';base64,');
     const contentType = parts[0].split(':')[1];
     const raw = window.atob(parts[1]);
@@ -153,22 +151,19 @@ export default function DiklatInputPage() {
 
           {/* WAKTU */}
           <div className="space-y-4 relative z-10">
-            <h2 className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 font-heading">
-              <Clock className="w-4 h-4 text-purple-500 dark:text-purple-400" /> Waktu Pelaksanaan
+            <h2 className="flex items-center gap-4 text-sm font-bold uppercase tracking-widest text-slate-400 mb-4">
+              <Clock className="w-5 h-5 text-blue-400 shrink-0" /> Waktu Pelaksanaan
             </h2>
-            <div className="bg-slate-50 dark:bg-white/5 p-5 rounded-2xl border border-gray-200 dark:border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-inner">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-1 font-bold">Waktu Saat Ini</p>
-                <p className="text-base font-bold text-navy-dark dark:text-white font-heading tracking-wide">
-                  {startTime ? `${startTime.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '/')} – ${startTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}` : '-'}
-                </p>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">Tanggal & Waktu</label>
+                <input 
+                  type="datetime-local" 
+                  value={getLocalIsoString(startTime)}
+                  onChange={(e) => setStartTime(new Date(e.target.value))}
+                  className="w-full bg-navy-dark/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all appearance-none"
+                />
               </div>
-              <input 
-                type="datetime-local" 
-                value={getLocalIsoString(startTime)}
-                onChange={(e) => setStartTime(new Date(e.target.value))}
-                className="bg-white dark:bg-navy-dark border border-gray-300 dark:border-white/10 rounded-xl px-4 py-3 text-sm text-navy-dark dark:text-blue-400 outline-none focus:border-blue-500/50 focus:ring-2 focus:ring-blue-500/20 transition-all font-mono accent-blue-600"
-              />
             </div>
           </div>
 
@@ -271,19 +266,34 @@ export default function DiklatInputPage() {
         </div>
 
         {/* TOMBOL SIMPAN */}
-        <div className="pt-2">
-          <button
+        <div className="pt-6">
+          <motion.button
             type="submit"
             disabled={isSubmitting || !tempat || !narasumber || pesertaSelected.length === 0 || !materi}
-            className="w-full flex justify-center items-center gap-3 py-4 bg-blue-600 hover:bg-blue-500 text-white text-[13px] font-bold uppercase tracking-[0.15em] rounded-[12px] shadow-lg shadow-blue-500/25 transition-all hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] border border-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed group"
+            animate={{
+              boxShadow: [
+                "0 0 0 0 rgba(37, 99, 235, 0)",
+                "0 0 0 15px rgba(37, 99, 235, 0.3)",
+                "0 0 0 0 rgba(37, 99, 235, 0)"
+              ]
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="w-full flex justify-center items-center gap-4 py-5 bg-blue-600 hover:bg-blue-500 text-white text-base font-bold uppercase tracking-[0.2em] rounded-2xl transition-all border border-blue-400/30 group disabled:opacity-50 overflow-hidden relative shadow-[0_0_20px_rgba(37,99,235,0.4)] glow-blue"
           >
+            <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-1000 ease-in-out" />
             {isSubmitting ? (
               <RefreshCw className="w-5 h-5 animate-spin" />
             ) : (
-              <Save className="w-5 h-5 group-hover:scale-110 transition-transform" />
+              <>
+                <Save className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                <span>Simpan Data</span>
+              </>
             )}
-            <span>{isSubmitting ? 'Menyimpan...' : 'Simpan Data'}</span>
-          </button>
+          </motion.button>
         </div>
 
       </form>

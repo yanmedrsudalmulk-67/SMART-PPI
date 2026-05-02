@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { LiveStatisticsCard } from '@/components/LiveStatisticsCard';
 import { useRouter } from 'next/navigation';
 import { 
   ArrowLeft, 
@@ -19,7 +20,8 @@ import {
   Trash2,
   Edit2,
   X,
-  Signature
+  Signature,
+  RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Link from 'next/link';
@@ -50,6 +52,7 @@ type Observer = { id: string; nama: string };
 export default function PengelolaanLimbahTajamPage() {
   const router = useRouter();
   const { userRole } = useAppContext();
+  const isIPCN = userRole === 'IPCN' || userRole === 'Admin';
   
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [observer, setObserver] = useState('');
@@ -94,20 +97,19 @@ export default function PengelolaanLimbahTajamPage() {
       const supabase = getSupabase();
       const { data, error } = await supabase.from('master_observers').select('*').order('nama');
       if (error) throw error;
-      if (data) setObservers(data);
+      
+      const hasAdi = data?.some(s => s.nama === 'IPCN_Adi Tresa Purnama');
+      let finalData = data || [];
+      if (!hasAdi) {
+        finalData = [{ nama: 'IPCN_Adi Tresa Purnama' }, ...finalData];
+      }
+      setObservers(finalData);
+      if (finalData.length > 0 && !observer) {
+        setObserver(finalData[0].nama);
+      }
     } catch (err) {
-      // Fallback initial list
-      setObservers([
-        { id: '1', nama: 'IPCN_Adi Tresa Purnama' },
-        { id: '2', nama: 'IPCLN_Syefira Salsabila' },
-        { id: '3', nama: 'IPCLN_Siti Hapsoh Roditubillah' },
-        { id: '4', nama: 'IPCLN_Ria Meliani' },
-        { id: '5', nama: 'IPCLN_Ema Mahmudah' },
-        { id: '6', nama: 'IPCLN_Putri Audia' },
-        { id: '7', nama: 'IPCLN_Seli Marselina' },
-        { id: '8', nama: 'IPCLN_Rahmat Hidayat' },
-        { id: '9', nama: 'IPCLN_Rickha Ilnia' }
-      ]);
+      setObservers([{ id: '1', nama: 'IPCN_Adi Tresa Purnama' }]);
+      setObserver('IPCN_Adi Tresa Purnama');
     }
   };
 
@@ -116,21 +118,30 @@ export default function PengelolaanLimbahTajamPage() {
     try {
       const supabase = getSupabase();
       if (editObserverId) {
-        const { error } = await supabase.from('master_observers').update({ nama: newObserverName }).eq('id', editObserverId);
-        if (error) throw error;
-        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o));
+        if (!editObserverId.startsWith('local-')) {
+          await supabase.from('master_observers').update({ nama: newObserverName }).eq('id', editObserverId);
+        }
+        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o).sort((a,b) => a.nama.localeCompare(b.nama)));
       } else {
         const { data, error } = await supabase.from('master_observers').insert([{ nama: newObserverName }]).select();
-        if (error) throw error;
-        if (data && data.length > 0) {
+        if (!error && data && data.length > 0) {
           setObservers(prev => [...prev, data[0]].sort((a,b) => a.nama.localeCompare(b.nama)));
+        } else {
+          setObservers(prev => [...prev, { id: 'local-' + Date.now().toString(), nama: newObserverName }].sort((a,b) => a.nama.localeCompare(b.nama)));
         }
       }
       setNewObserverName('');
       setEditObserverId(null);
     } catch (err) {
-      console.error(err);
-      alert('Gagal menyimpan observer.');
+      console.error('Save observer non-fatal fallback:', err);
+      // Fallback local update
+      if (editObserverId) {
+        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o).sort((a,b) => a.nama.localeCompare(b.nama)));
+      } else {
+        setObservers(prev => [...prev, { id: 'local-' + Date.now().toString(), nama: newObserverName }].sort((a,b) => a.nama.localeCompare(b.nama)));
+      }
+      setNewObserverName('');
+      setEditObserverId(null);
     }
   };
 
@@ -138,13 +149,19 @@ export default function PengelolaanLimbahTajamPage() {
     if (!confirm('Hapus observer ini?')) return;
     try {
       const supabase = getSupabase();
-      const { error } = await supabase.from('master_observers').delete().eq('id', id);
-      if (error) throw error;
+      if (!id.startsWith('local-')) {
+        await supabase.from('master_observers').delete().eq('id', id);
+      }
       setObservers(prev => prev.filter(o => o.id !== id));
-      if (observer === id) setObserver('');
+      if (observer === (observers.find(o => o.id === id)?.nama)) {
+        setObserver('');
+      }
     } catch (err) {
-      console.error(err);
-      alert('Gagal menghapus observer.');
+      console.error('Delete observer fallback:', err);
+      setObservers(prev => prev.filter(o => o.id !== id));
+      if (observer === (observers.find(o => o.id === id)?.nama)) {
+        setObserver('');
+      }
     }
   };
 
@@ -163,27 +180,19 @@ export default function PengelolaanLimbahTajamPage() {
     });
 
     const persentase = dinilai > 0 ? Math.round((patuh / dinilai) * 100) : 0;
-    let color = 'text-slate-400';
-    let bg = 'bg-slate-500/10';
     let status = 'Belum Dinilai';
     
     if (dinilai > 0) {
       if (persentase === 100) { 
-        color = 'text-blue-400'; 
-        bg = 'bg-blue-500/10'; 
         status = 'Patuh'; 
       } else if (persentase >= 85) { 
-        color = 'text-amber-400'; 
-        bg = 'bg-amber-500/10'; 
         status = 'Cukup'; 
       } else { 
-        color = 'text-red-400'; 
-        bg = 'bg-red-500/10'; 
         status = 'Tidak Patuh'; 
       }
     }
 
-    return { patuh, dinilai, persentase, color, bg, status };
+    return { patuh, dinilai, persentase, status };
   }, [data]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -271,23 +280,21 @@ export default function PengelolaanLimbahTajamPage() {
         <div className="lg:col-span-8 space-y-8">
           
           {/* WAKTU OBSERVASI */}
-          <div className="glass-card p-6 rounded-[24px] border-white/5">
-            <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-500 mb-6">
+          <div className="glass-card p-6 rounded-[24px] border-white/5 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-[50px] -z-10 group-hover:bg-blue-500/10 transition-colors" />
+            <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-slate-400 mb-6">
               <Clock className="w-4 h-4 text-blue-400" /> Waktu Observasi
             </h2>
-            <div className="bg-white/5 p-5 rounded-2xl border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Waktu Input (Otomatis)</p>
-                <p className="text-base font-bold text-white">
-                  {startTime ? `${startTime.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })} | ${startTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}` : '-'}
-                </p>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">Tanggal & Waktu</label>
+                <input 
+                  type="datetime-local" 
+                  value={getLocalIsoString(startTime)}
+                  onChange={(e) => setStartTime(new Date(e.target.value))}
+                  className="w-full bg-navy-dark/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all appearance-none"
+                />
               </div>
-              <input 
-                type="datetime-local" 
-                value={getLocalIsoString(startTime)}
-                onChange={(e) => setStartTime(new Date(e.target.value))}
-                className="bg-navy-dark border border-white/10 rounded-xl px-4 py-2 text-xs text-blue-400 outline-none focus:border-blue-500/50 transition-all font-mono"
-              />
             </div>
           </div>
 
@@ -299,7 +306,7 @@ export default function PengelolaanLimbahTajamPage() {
                   <h2 className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
                     <User className="w-3.5 h-3.5 text-blue-400" /> Observer
                   </h2>
-                  {(userRole === 'IPCN' || userRole === 'Admin') && (
+                  {isIPCN && (
                     <button 
                       type="button" 
                       onClick={() => setIsObserverModalOpen(true)}
@@ -313,11 +320,11 @@ export default function PengelolaanLimbahTajamPage() {
                   <select 
                     value={observer}
                     onChange={(e) => setObserver(e.target.value)}
-                    className="w-full bg-white/5 border border-white/5 rounded-2xl px-4 py-4 text-sm text-white outline-none focus:border-blue-500/50 appearance-none transition-all pr-10"
+                    className="w-full bg-white/5 border border-white/5 rounded-2xl px-4 py-4 text-sm text-white outline-none focus:border-blue-500/50 appearance-none transition-all pr-10 cursor-pointer"
                     required
                   >
                     <option value="" className="bg-navy-dark text-slate-400">Pilih Observer...</option>
-                    {observers.map(o => <option key={o.id} value={o.nama} className="bg-navy-dark">{o.nama}</option>)}
+                    {observers.map(o => <option key={o.id || o.nama} value={o.nama} className="bg-navy-dark">{o.nama}</option>)}
                   </select>
                   <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
                     <Plus className="w-4 h-4 text-slate-500" />
@@ -359,17 +366,17 @@ export default function PengelolaanLimbahTajamPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: idx * 0.05 }}
                   key={item.id} 
-                  className="glass-card p-5 rounded-[24px] border-white/5 hover:border-white/10 transition-all flex flex-col md:flex-row md:items-center justify-between gap-6"
+                  className="glass-card p-5 rounded-[24px] border-white/5 hover:border-white/10 transition-all flex flex-col md:flex-col justify-between gap-4"
                 >
                   <p className="text-sm sm:text-base font-bold text-white/90 leading-relaxed md:max-w-md lg:max-w-lg">
                     {item.label}
                   </p>
-                  <div className="flex p-1.5 bg-white/5 rounded-2xl border border-white/10 w-fit shrink-0">
-                    <button
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full shrink-0">
+<button
                       type="button"
                       onClick={() => toggleItem(item.id, 'ya')}
-                      className={`px-4 sm:px-6 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
-                        data[item.id] === 'ya' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-500 hover:text-slate-300'
+                      className={`py-3 px-2 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all border ${
+                        data[item.id] === 'ya' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'
                       }`}
                     >
                       Ya
@@ -377,8 +384,8 @@ export default function PengelolaanLimbahTajamPage() {
                     <button
                       type="button"
                       onClick={() => toggleItem(item.id, 'tidak')}
-                      className={`px-4 sm:px-6 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
-                        data[item.id] === 'tidak' ? 'bg-red-600 text-white shadow-lg shadow-red-600/30' : 'text-slate-500 hover:text-slate-300'
+                      className={`py-3 px-2 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all border ${
+                        data[item.id] === 'tidak' ? 'bg-red-600 text-white shadow-lg shadow-red-600/30' : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'
                       }`}
                     >
                       Tidak
@@ -386,8 +393,8 @@ export default function PengelolaanLimbahTajamPage() {
                     <button
                       type="button"
                       onClick={() => toggleItem(item.id, 'na')}
-                      className={`px-4 sm:px-6 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${
-                        data[item.id] === 'na' ? 'bg-white/10 text-white' : 'text-slate-500 hover:text-slate-300'
+                      className={`py-3 px-2 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all border ${
+                        data[item.id] === 'na' ? 'bg-white/10 text-white' : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'
                       }`}
                     >
                       N/A
@@ -399,8 +406,15 @@ export default function PengelolaanLimbahTajamPage() {
           </div>
 
           {/* STATS FOR MOBILE */}
-          <div className="lg:hidden">
-            <StatsCard stats={stats} calculateDashOffset={calculateDashOffset} />
+          <div className="lg:hidden mt-8 mb-8">
+            <LiveStatisticsCard 
+              totalDinilai={stats.dinilai}
+              totalPatuh={stats.patuh}
+              totalTidakPatuh={stats.dinilai - stats.patuh}
+              persentase={stats.persentase}
+              statusText={stats.status}
+              title="HASIL OBSERVASI LIMBAH"
+            />
           </div>
 
           {/* TEMUAN & REKOMENDASI */}
@@ -485,19 +499,33 @@ export default function PengelolaanLimbahTajamPage() {
 
           {/* SAVE BUTTON AT BOTTOM */}
           <div className="pt-8">
-            <button
+            <motion.button
               type="submit"
               disabled={isSubmitting || !observer || !unit || stats.dinilai === 0}
-              className="w-full flex justify-center items-center gap-3 py-5 bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 shadow-[0_0_20px_rgba(59,130,246,0.5)] text-white text-[14px] font-bold uppercase tracking-[0.2em] rounded-2xl transition-all hover:scale-[1.02] disabled:opacity-50 group active:scale-95"
+              animate={{
+                boxShadow: [
+                  "0 0 0 0 rgba(37, 99, 235, 0)",
+                  "0 0 0 15px rgba(37, 99, 235, 0.3)",
+                  "0 0 0 0 rgba(37, 99, 235, 0)"
+                ]
+              }}
+              transition={{
+                duration: 2,
+                repeat: Infinity,
+                ease: "easeInOut"
+              }}
+              className="w-full flex justify-center items-center gap-4 py-5 bg-blue-600 hover:bg-blue-500 text-white text-base font-bold uppercase tracking-[0.2em] rounded-2xl transition-all border border-blue-400/30 group disabled:opacity-50 overflow-hidden relative shadow-[0_0_20px_rgba(37,99,235,0.4)] glow-blue"
             >
+              <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-1000 ease-in-out" />
               {isSubmitting ? (
                 <RefreshCw className="w-5 h-5 animate-spin" />
               ) : (
                 <>
-                  <Save className="w-5 h-5" /> Simpan Data
+                  <Save className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  <span>Simpan Data</span>
                 </>
               )}
-            </button>
+            </motion.button>
             <p className="text-center text-[10px] text-slate-600 mt-4 font-bold uppercase tracking-widest">
               SMART-PPI Audit Ver. 2.0 | RSUD AL-MULK
             </p>
@@ -507,7 +535,14 @@ export default function PengelolaanLimbahTajamPage() {
 
         {/* Sidebar Summary (Desktop Only) */}
         <div className="hidden lg:block lg:col-span-4 sticky top-40">
-          <StatsCard stats={stats} calculateDashOffset={calculateDashOffset} />
+          <LiveStatisticsCard 
+            totalDinilai={stats.dinilai}
+            totalPatuh={stats.patuh}
+            totalTidakPatuh={stats.dinilai - stats.patuh}
+            persentase={stats.persentase}
+            statusText={stats.status}
+            title="HASIL OBSERVASI LIMBAH"
+          />
         </div>
 
       </form>
@@ -542,25 +577,30 @@ export default function PengelolaanLimbahTajamPage() {
                   value={newObserverName}
                   onChange={(e) => setNewObserverName(e.target.value)}
                   placeholder="Nama Observer baru..."
-                  className="flex-1 bg-navy-dark border border-white/10 rounded-xl px-4 py-2 text-sm text-white outline-none focus:border-blue-500/50"
+                  disabled={!isIPCN}
+                  className="flex-1 bg-navy-dark border border-white/10 rounded-xl px-4 py-2 text-sm text-white outline-none focus:border-blue-500/50 disabled:opacity-50"
                   onKeyDown={(e) => e.key === 'Enter' && saveObserver()}
                 />
-                <button 
-                  onClick={saveObserver}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-blue-500"
-                >
-                  {editObserverId ? 'Update' : 'Tambah'}
-                </button>
+                {isIPCN && (
+                  <button 
+                    onClick={saveObserver}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-blue-500"
+                  >
+                    {editObserverId ? 'Update' : 'Tambah'}
+                  </button>
+                )}
               </div>
 
               <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
                 {observers.map(o => (
-                  <div key={o.id} className="flex items-center justify-between p-3 bg-navy-dark border border-white/5 rounded-xl group">
+                  <div key={o.id || o.nama} className="flex items-center justify-between p-3 bg-navy-dark border border-white/5 rounded-xl group">
                     <span className="text-sm font-medium text-slate-300">{o.nama}</span>
-                    <div className="flex gap-1">
-                      <button onClick={() => { setNewObserverName(o.nama); setEditObserverId(o.id); }} className="p-2 text-slate-500 hover:text-blue-400 transition-colors"><Edit2 className="w-4 h-4" /></button>
-                      <button onClick={() => deleteObserver(o.id)} className="p-2 text-slate-500 hover:text-red-400 transition-colors"><Trash2 className="w-4 h-4" /></button>
-                    </div>
+                    {isIPCN && (
+                      <div className="flex gap-1">
+                        <button onClick={() => { setNewObserverName(o.nama); setEditObserverId(o.id); }} className="p-2 text-slate-500 hover:text-blue-400 transition-colors"><Edit2 className="w-4 h-4" /></button>
+                        <button onClick={() => deleteObserver(o.id)} className="p-2 text-slate-500 hover:text-red-400 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -569,88 +609,5 @@ export default function PengelolaanLimbahTajamPage() {
         )}
       </AnimatePresence>
     </div>
-  );
-}
-
-function StatsCard({ stats, calculateDashOffset }: any) {
-  return (
-    <div className="glass-card p-8 rounded-[32px] border-white/5 flex flex-col items-center justify-center relative overflow-hidden bg-white/2">
-      <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 blur-[80px] rounded-full -z-10 ${stats.bg.replace('/10', '/20')}`} />
-      
-      <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-8 w-full text-left">Realtime Analytics</h3>
-      
-      {/* Circular Progress */}
-      <div className="relative w-48 h-48 flex items-center justify-center mb-6">
-        <svg className="w-full h-full -rotate-90" viewBox="0 0 80 80">
-          <circle cx="40" cy="40" r="36" fill="transparent" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
-          <motion.circle 
-            cx="40" cy="40" r="36" 
-            fill="transparent" 
-            stroke="currentColor" 
-            strokeWidth="8" 
-            strokeDasharray={2 * Math.PI * 36}
-            strokeLinecap="round"
-            className={stats.color}
-            initial={{ strokeDashoffset: 2 * Math.PI * 36 }}
-            animate={{ strokeDashoffset: calculateDashOffset(stats.persentase) }}
-            transition={{ duration: 1, ease: 'easeOut' }}
-          />
-        </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-4xl font-heading font-bold text-white">{stats.persentase}%</span>
-          <span className={`text-[10px] font-bold uppercase tracking-widest mt-1 ${stats.color}`}>{stats.status}</span>
-        </div>
-      </div>
-
-      <div className="w-full grid grid-cols-2 gap-4 mt-2">
-        <div className="bg-white/5 rounded-2xl p-4 text-center border border-white/5">
-          <p className="text-2xl font-bold text-white mb-1">{stats.patuh}</p>
-          <p className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">Patuh</p>
-        </div>
-        <div className="bg-white/5 rounded-2xl p-4 text-center border border-white/5">
-          <p className="text-2xl font-bold text-white mb-1">{stats.dinilai}</p>
-          <p className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">Dinilai</p>
-        </div>
-      </div>
-
-      <AnimatePresence>
-        {stats.persentase < 85 && stats.dinilai > 0 && (
-          <motion.div 
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="w-full bg-red-500/10 border border-red-500/20 rounded-2xl p-4 mt-6"
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <AlertCircle className="w-4 h-4 text-red-400" />
-              <span className="text-[10px] font-bold uppercase tracking-widest text-red-500">Tindakan Diperlukan</span>
-            </div>
-            <p className="text-xs text-red-200 font-medium">Kepatuhan di bawah standar PPI. Segera lakukan tindak lanjut dan edukasi ulang petugas.</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-function RefreshCw(props: any) {
-  return (
-    <svg 
-      {...props} 
-      xmlns="http://www.w3.org/2000/svg" 
-      width="24" 
-      height="24" 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="2" 
-      strokeLinecap="round" 
-      strokeLinejoin="round"
-    >
-      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-      <path d="M21 3v5h-5" />
-      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-      <path d="M3 21v-5h5" />
-    </svg>
   );
 }

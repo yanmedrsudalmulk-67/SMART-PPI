@@ -11,11 +11,14 @@ export default function WelcomePage() {
   const [time, setTime] = useState<Date | null>(null);
   const [mounted, setMounted] = useState(false);
   const [isDark, setIsDark] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
     // Avoid sync setState error
     setTimeout(() => {
       setMounted(true);
+      setIsMobile(window.innerWidth < 640);
+      
       // Resume correct theme from local storage if available
       const savedTheme = localStorage.getItem('theme');
       if (savedTheme === 'light') {
@@ -26,8 +29,14 @@ export default function WelcomePage() {
       setTime(new Date());
     }, 0);
 
+    const handleResize = () => setIsMobile(window.innerWidth < 640);
+    window.addEventListener('resize', handleResize);
+
     const interval = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('resize', handleResize);
+    };
   }, []);
 
   // Sync theme changes with HTML root
@@ -41,9 +50,6 @@ export default function WelcomePage() {
       localStorage.setItem('theme', 'light');
     }
   }, [isDark, mounted]);
-
-  // Don't render complex UI before hydration to prevent mismatch
-  if (!mounted) return null;
 
   return (
     <div className={`h-screen w-full transition-colors duration-700 ease-in-out relative flex flex-col items-center justify-center overflow-hidden font-sans ${isDark ? 'bg-[#0a0f1c] text-white' : 'bg-[#ffffff] text-[#0A2F1D]'}`}>
@@ -69,7 +75,7 @@ export default function WelcomePage() {
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 1, delay: 0.6, type: "spring", bounce: 0.5 }}
-          className="absolute top-[12%] left-[4%] lg:top-[20%] lg:left-[15%] hidden md:block z-30"
+          className="absolute md:top-[20%] md:left-[15%] lg:top-[20%] lg:left-[15%] hidden md:block z-30 md:scale-100 lg:scale-100 origin-top-left"
         >
           <motion.div
             animate={{ y: [0, -12, 0] }}
@@ -101,7 +107,7 @@ export default function WelcomePage() {
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 1, delay: 0.8, type: "spring", bounce: 0.5 }}
-          className="absolute bottom-[20%] right-[4%] lg:bottom-[25%] lg:right-[15%] hidden md:block z-30"
+          className="absolute md:bottom-[25%] md:right-[15%] lg:bottom-[25%] lg:right-[15%] hidden md:block z-30 md:scale-100 lg:scale-100 origin-bottom-right"
         >
           <motion.div
             animate={{ y: [0, -15, 0] }}
@@ -133,7 +139,7 @@ export default function WelcomePage() {
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 1, delay: 1, type: "spring", bounce: 0.5 }}
-          className="absolute top-[17%] right-[4%] lg:top-[35%] lg:right-[10%] hidden md:block z-30"
+          className="absolute md:top-[35%] md:right-[10%] lg:top-[35%] lg:right-[10%] hidden md:block z-30 md:scale-100 lg:scale-100 origin-top-right"
         >
           <motion.div
             animate={{ y: [0, -10, 0] }}
@@ -173,7 +179,7 @@ export default function WelcomePage() {
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 1, delay: 1.2, type: "spring", bounce: 0.5 }}
-          className="absolute bottom-[27%] left-[6%] lg:bottom-[40%] lg:left-[10%] hidden md:block z-30"
+          className="absolute md:bottom-[40%] md:left-[10%] lg:bottom-[40%] lg:left-[10%] hidden md:block z-30 md:scale-100 lg:scale-100 origin-bottom-left"
         >
           <motion.div
              animate={{ y: [0, -14, 0] }}
@@ -262,7 +268,7 @@ export default function WelcomePage() {
             <motion.div
               initial={false}
               animate={{ 
-                x: isDark ? (typeof window !== 'undefined' && window.innerWidth < 640 ? 44 : 46) : 0, 
+                x: isDark ? (mounted && isMobile ? 44 : 46) : 0, 
               }}
               transition={{ type: "spring", stiffness: 400, damping: 25 }}
               className={`relative h-[28px] w-[28px] sm:h-[36px] sm:w-[36px] flex items-center justify-center rounded-full shadow-[inset_0_0_5px_rgba(255,255,255,0.4)] z-10 transition-colors duration-500 ${isDark ? 'bg-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.7)]' : 'bg-[#38C968] shadow-[0_0_15px_rgba(56,201,104,0.7)]'}`}
@@ -282,17 +288,17 @@ export default function WelcomePage() {
           className="text-center max-w-4xl w-full flex flex-col items-center"
         >
           {/* Title */}
-          <h1 className="text-6xl md:text-[100px] lg:text-[120px] font-heading font-black leading-[1.1] tracking-tighter relative mb-6 md:mb-10 lg:mb-8">
+          <h1 className="text-6xl md:text-[100px] lg:text-[120px] font-heading font-black leading-[1.1] tracking-tighter relative mb-6 md:mb-10 lg:mb-8" style={{ perspective: 1000 }}>
             <motion.span 
-              initial={{ y: 20, opacity: 0, backgroundPosition: "0% 50%" }} 
-              animate={{ y: 0, opacity: 1, backgroundPosition: ["0% 50%", "100% 50%", "0% 50%"] }} 
+              initial={{ y: 20, opacity: 0 }} 
+              animate={{ y: 0, opacity: 1 }} 
+              whileHover={{ rotateX: 10, rotateY: 10, scale: 1.02 }}
               transition={{ 
                 y: { duration: 0.8, delay: 0.6 },
                 opacity: { duration: 0.8, delay: 0.6 },
-                backgroundPosition: { duration: 6, repeat: Infinity, ease: "linear" } 
               }}
-              style={{ backgroundSize: "200% auto" }}
-              className={`block text-transparent bg-clip-text bg-gradient-to-r drop-shadow-[0_0_25px_rgba(59,130,246,0.3)] transition-colors duration-500 ${isDark ? 'from-blue-400 via-purple-500 to-blue-400' : 'from-blue-500 via-[#38C968] to-blue-500'}`}
+              style={{ transformStyle: 'preserve-3d' }}
+              className={`block text-transparent bg-clip-text bg-gradient-to-r bg-[length:200%_auto] animate-gradient drop-shadow-[0_0_25px_rgba(59,130,246,0.3)] transition-colors duration-500 ${isDark ? 'from-blue-400 via-purple-500 to-blue-400' : 'from-blue-500 via-[#38C968] to-blue-500'}`}
             >
               SMART PPI
             </motion.span>

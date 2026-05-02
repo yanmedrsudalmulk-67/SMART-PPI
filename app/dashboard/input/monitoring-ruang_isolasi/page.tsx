@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { LiveStatisticsCard } from '@/components/LiveStatisticsCard';
 import { useRouter } from 'next/navigation';
 import { 
   ArrowLeft, 
@@ -20,7 +21,8 @@ import {
   Plus,
   X,
   Search,
-  ShieldCheck
+  ShieldCheck,
+  Activity
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Link from 'next/link';
@@ -107,35 +109,50 @@ export default function RuangIsolasiMonitoringPage() {
     try {
       const supabase = getSupabase();
       if (editObserverId) {
-        const { error } = await supabase.from('master_observers').update({ nama: newObserverName }).eq('id', editObserverId);
-        if (error) throw error;
-        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o));
+        if (!editObserverId.startsWith('local-')) {
+          await supabase.from('master_observers').update({ nama: newObserverName }).eq('id', editObserverId);
+        }
+        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o).sort((a,b) => a.nama.localeCompare(b.nama)));
       } else {
         const { data, error } = await supabase.from('master_observers').insert([{ nama: newObserverName }]).select();
-        if (error) throw error;
-        if (data && data.length > 0) {
+        if (!error && data && data.length > 0) {
           setObservers(prev => [...prev, data[0]].sort((a,b) => a.nama.localeCompare(b.nama)));
+        } else {
+          setObservers(prev => [...prev, { id: 'local-' + Date.now().toString(), nama: newObserverName }].sort((a,b) => a.nama.localeCompare(b.nama)));
         }
       }
       setNewObserverName('');
       setEditObserverId(null);
     } catch (err) {
-      console.error(err);
-      alert('Gagal menyimpan supervisor.');
+      console.error('Save observer non-fatal fallback:', err);
+      // Fallback local update
+      if (editObserverId) {
+        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o).sort((a,b) => a.nama.localeCompare(b.nama)));
+      } else {
+        setObservers(prev => [...prev, { id: 'local-' + Date.now().toString(), nama: newObserverName }].sort((a,b) => a.nama.localeCompare(b.nama)));
+      }
+      setNewObserverName('');
+      setEditObserverId(null);
     }
   };
 
   const deleteObserver = async (id: string) => {
-    if (!confirm('Hapus supervisor ini?')) return;
+    if (!confirm('Hapus observer ini?')) return;
     try {
       const supabase = getSupabase();
-      const { error } = await supabase.from('master_observers').delete().eq('id', id);
-      if (error) throw error;
+      if (!id.startsWith('local-')) {
+        await supabase.from('master_observers').delete().eq('id', id);
+      }
       setObservers(prev => prev.filter(o => o.id !== id));
-      if (observer === id) setObserver('');
+      if (observer === (observers.find(o => o.id === id)?.nama)) {
+        setObserver('');
+      }
     } catch (err) {
-      console.error(err);
-      alert('Gagal menghapus supervisor.');
+      console.error('Delete observer fallback:', err);
+      setObservers(prev => prev.filter(o => o.id !== id));
+      if (observer === (observers.find(o => o.id === id)?.nama)) {
+        setObserver('');
+      }
     }
   };
 
@@ -188,8 +205,8 @@ export default function RuangIsolasiMonitoringPage() {
     setIsSubmitting(true);
     try {
       const supabase = getSupabase();
-      const ttd_pj = sigPadPJ.current?.getTrimmedCanvas().toDataURL('image/png') || null;
-      const ttd_ipcn = sigPadIPCN.current?.getTrimmedCanvas().toDataURL('image/png') || null;
+      const ttd_pj = sigPadPJ.current?.getCanvas().toDataURL('image/png') || null;
+      const ttd_ipcn = sigPadIPCN.current?.getCanvas().toDataURL('image/png') || null;
 
       const uploadedUrls = await uploadImagesToSupabase(supabase, images, 'dokumentasi', 'audit');
       const payload = {
@@ -207,7 +224,7 @@ export default function RuangIsolasiMonitoringPage() {
       };
 
       const { error } = await supabase.from('audit_monitoring_ppi').insert([payload]);
-      if (error && error.code !== '42P01') throw error;
+      if (error) { console.error('Observer DB Error:', error); throw error; }
 
       setShowToast(true);
       setTimeout(() => {
@@ -321,32 +338,6 @@ export default function RuangIsolasiMonitoringPage() {
           </div>
         </div>
 
-        {/* STATS FLOATING CARD */}
-        <div className="sticky top-6 z-20">
-          <div className="glass-card p-4 rounded-2xl border-blue-500/20 shadow-2xl flex items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-xl ${stats.bg} ${stats.color} transition-colors duration-500`}>
-                <ShieldCheck className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Compliance Rate</p>
-                <h2 className={`text-2xl font-heading font-bold ${stats.color} transition-colors duration-500`}>{stats.persentase}%</h2>
-              </div>
-            </div>
-            <div className="hidden sm:block text-right">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Status</p>
-              <span className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter border ${stats.bg.replace('/10', '/30')} ${stats.color}`}>
-                {stats.status}
-              </span>
-            </div>
-            <div className="h-10 w-px bg-white/5 hidden sm:block" />
-            <div className="text-right">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Audit Score</p>
-              <p className="text-sm font-bold text-white font-mono">{stats.patuh} / {stats.dinilai}</p>
-            </div>
-          </div>
-        </div>
-
         {/* CHECKLIST */}
         <div className="space-y-4">
           <h3 className="text-xs font-bold uppercase tracking-widest text-slate-500 px-2 flex items-center gap-2">
@@ -382,7 +373,7 @@ export default function RuangIsolasiMonitoringPage() {
                             ? stat === 'ya' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30' :
                               stat === 'tidak' ? 'bg-red-600 text-white shadow-lg shadow-red-600/30' :
                               'bg-slate-600 text-white shadow-lg shadow-slate-600/30'
-                            : 'text-slate-500 hover:text-slate-300'
+                            : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'
                         }`}
                       >
                         {stat}
@@ -394,6 +385,16 @@ export default function RuangIsolasiMonitoringPage() {
             ))}
           </div>
         </div>
+
+        {/* HASIL PERSENTASE STANDARDIZED */}
+        <LiveStatisticsCard 
+          totalDinilai={stats.dinilai}
+          totalPatuh={stats.patuh}
+          totalTidakPatuh={stats.dinilai - stats.patuh}
+          persentase={stats.persentase}
+          statusText={stats.status}
+          title="HASIL AUDIT RUANG ISOLASI"
+        />
 
         {/* TEMUAN & REKOMENDASI */}
         <div className="glass-card p-6 sm:p-8 rounded-[2rem] border-white/5 space-y-6">
@@ -471,23 +472,33 @@ export default function RuangIsolasiMonitoringPage() {
 
         {/* SUBMIT BUTTON */}
         <div className="pt-4 pb-12">
-          <button
+          <motion.button
             type="submit"
             disabled={isSubmitting}
-            className="w-full py-5 rounded-[2rem] bg-gradient-to-r from-blue-600 to-blue-800 text-white font-heading font-black text-xs uppercase tracking-[0.3em] shadow-2xl shadow-blue-600/30 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-4 group disabled:opacity-50 border border-white/10 glow-blue"
+            animate={{
+              boxShadow: [
+                "0 0 0 0 rgba(37, 99, 235, 0)",
+                "0 0 0 15px rgba(37, 99, 235, 0.3)",
+                "0 0 0 0 rgba(37, 99, 235, 0)"
+              ]
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="w-full flex justify-center items-center gap-4 py-5 bg-blue-600 hover:bg-blue-500 text-white text-base font-bold uppercase tracking-[0.2em] rounded-2xl transition-all border border-blue-400/30 group disabled:opacity-50 overflow-hidden relative shadow-[0_0_20px_rgba(37,99,235,0.4)] glow-blue"
           >
+            <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-1000 ease-in-out" />
             {isSubmitting ? (
-              <>
-                <RefreshCw className="w-5 h-5 animate-spin" />
-                Memproses...
-              </>
+              <RefreshCw className="w-5 h-5 animate-spin" />
             ) : (
               <>
                 <Save className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                Simpan Data Audit
+                <span>Simpan Data</span>
               </>
             )}
-          </button>
+          </motion.button>
         </div>
 
       </form>

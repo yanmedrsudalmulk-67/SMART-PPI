@@ -61,6 +61,14 @@
   background-color: rgba(255, 255, 255, 0.05) !important;
   border-color: rgba(255, 255, 255, 0.1) !important;
 }
+
+/* Force White/Black for Reports */
+.bg-force-white {
+  background-color: #ffffff !important;
+}
+.text-force-black {
+  color: #000000 !important;
+}
 :root:not(.light) .border-bg-gray,
 :root:not(.light) .border-gray-200 {
   border-color: rgba(255, 255, 255, 0.1) !important;
@@ -83,17 +91,11 @@ html.light .bg-navy-light {
 html.light .bg-navy-dark\/50 {
   background-color: rgba(255, 255, 255, 0.9) !important;
 }
-html.light .bg-navy-dark\/80 {
-  background-color: rgba(255, 255, 255, 0.95) !important;
-}
-html.light .bg-navy-dark\/90 {
-  background-color: rgba(255, 255, 255, 0.98) !important;
-}
 html.light .bg-navy-light\/50 {
   background-color: rgba(248, 250, 252, 0.9) !important;
 }
 html.light .bg-navy-light\/80 {
-  background-color: rgba(248, 250, 252, 0.95) !important;
+  background-color: rgba(248, 250, 252, 0.9) !important;
 }
 html.light .text-white {
   color: #0F3D2E !important;
@@ -114,11 +116,8 @@ html.light .bg-white\/5 {
 html.light .bg-white\/10 {
   background-color: rgba(255, 255, 255, 1) !important;
 }
-html.light .hover\:bg-white\/5:hover {
-  background-color: rgba(241, 245, 249, 1) !important;
-}
 html.light .hover\:bg-white\/10:hover {
-  background-color: rgba(226, 232, 240, 1) !important;
+  background-color: rgba(241, 245, 249, 1) !important;
 }
 html.light .border-white\/5,
 html.light .border-white\/10,
@@ -248,15 +247,6 @@ html.light .text-red-400 { color: #dc2626 !important; }
 html.light .bg-red-500\/10 { background-color: rgba(220, 38, 38, 0.1) !important; }
 html.light .border-red-500\/20 { border-color: rgba(220, 38, 38, 0.2) !important; }
 
-/* Status Colors in Light Mode */
-html.light .text-emerald-400 { color: #059669 !important; }
-html.light .text-emerald-500 { color: #047857 !important; }
-html.light .text-amber-400 { color: #d97706 !important; }
-html.light .text-amber-500 { color: #b45309 !important; }
-html.light .text-indigo-400 { color: #4f46e5 !important; }
-html.light .text-indigo-500 { color: #4338ca !important; }
-html.light .text-green-400 { color: #16a34a !important; }
-
 /* Recharts SVG Overrides for Light Mode */
 html.light path[stroke="#3b82f6"], html.light path[stroke="#0088FE"] { stroke: #3b82f6 !important; }
 html.light path[stroke="#8b5cf6"], html.light path[stroke="#00C49F"] { stroke: #10b981 !important; }
@@ -280,43 +270,28 @@ html.light .recharts-tooltip-item-name, html.light .recharts-tooltip-item-value 
   color: #0F3D2E !important;
 }
 
-/* Keep white text white on elements that explicitly need it */
+/* Keep white text white on buttons explicitly enforcing it */
 html.light button.from-blue-500 .text-white,
-html.light button.from-blue-600 .text-white,
 html.light button.from-blue-500,
-html.light button.from-blue-600,
-html.light .\!text-white {
-  color: #ffffff !important;
-}
-html.light .from-blue-500 .text-white,
-html.light .from-blue-600 .text-white,
-html.light .bg-purple-600.text-white,
-html.light .bg-blue-600.text-white,
-html.light .bg-indigo-600.text-white,
-html.light .from-blue-400 .text-white,
-html.light .from-blue-600.text-white,
-html.light .bg-red-600.text-white,
-html.light .bg-red-500.text-white,
-html.light .bg-emerald-500.text-white,
-html.light .bg-green-600.text-white,
-html.light .bg-slate-600.text-white {
+html.light .!text-white {
   color: #ffffff !important;
 }
 html.light .from-blue-500 .text-white,
 html.light .bg-purple-600 .text-white,
 html.light .bg-blue-600 .text-white,
-html.light .bg-red-600 .text-white,
-html.light .bg-emerald-500 .text-white {
+html.light .bg-red-600 .text-white {
   color: #ffffff !important;
 }
 html.light .text-navy-dark {
   color: #0A2F1D !important;
 }
 
-/* Hide Next.js Development & Static Indicators (Button "N") */
+/* Hide Next.js Development & Static Indicators */
 #__next-build-watcher,
 #__next-prerender-indicator,
 .nextjs-portal,
+.nextjs-static-indicator,
+.nextjs-dev-overlay,
 [data-nextjs-toast-wrapper],
 [data-nextjs-portal],
 [data-nextjs-indicator],
@@ -325,9 +300,15 @@ html.light .text-navy-dark {
 [data-nextjs-on-demand-entries-utils],
 [data-nextjs-static-indicator-wrapper],
 [data-nextjs-script-indicator],
+[data-nextjs-dev-overlay],
+[data-nextjs-route-inspector],
 #dev-indicator,
 .dev-indicator,
-div[style*="position: fixed"][style*="bottom"][style*="left"] {
+/* Specifically hiding the bottom-left/right popup menus mentioned: Route, Static, Turbopack, etc. */
+div[style*="position: fixed"][style*="bottom: 0"], 
+div[style*="position: fixed"][style*="bottom:0"],
+div[style*="position: fixed"][style*="z-index"][style*="bottom"],
+div[id^="nextjs-dev-overlay"] {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;

@@ -1,6 +1,7 @@
 'use client';
 
-import { ArrowLeft, Syringe, Droplets, Activity, Wind, Plus, ClipboardCheck } from 'lucide-react';
+import { Save, RefreshCw, ArrowLeft, Syringe, Droplets, Activity, Wind, Plus, ClipboardCheck } from 'lucide-react';
+import { LiveStatisticsCard } from '@/components/LiveStatisticsCard';
 import { motion } from 'motion/react';
 import Link from 'next/link';
 
@@ -98,11 +99,10 @@ export default function BundlesMenuPage() {
                   <div className="pt-5 border-t border-white/5 mt-auto">
                     <Link 
                       href={`/dashboard/input/bundles/${item.id}`}
-                      className="flex items-center justify-center gap-2 w-full py-3.5 bg-gradient-to-r from-blue-500/10 to-blue-600/10 hover:from-blue-500 hover:to-blue-600 border border-blue-500/20 hover:border-blue-500 text-blue-400 hover:text-white text-[11px] font-bold uppercase tracking-[0.2em] rounded-2xl transition-all duration-300 hover:-translate-y-1 relative group/btn overflow-hidden shadow-lg shadow-blue-500/5 hover:shadow-blue-500/25 active:scale-95"
+                      className="flex items-center justify-center gap-2 w-full py-4 bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold uppercase tracking-[0.2em] rounded-2xl transition-all duration-300 hover:-translate-y-1 relative group/btn overflow-hidden shadow-lg shadow-blue-600/20 active:scale-95"
                     >
                       <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent group-hover/btn:animate-[shimmer_1.5s_infinite]" />
-                      <Plus className="w-4 h-4 group-hover/btn:rotate-90 transition-transform duration-500" />
-                      Input Data
+                      INPUT DATA
                     </Link>
                   </div>
                 </motion.div>

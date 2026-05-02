@@ -207,3 +207,35 @@ WHERE NOT EXISTS (SELECT 1 FROM public.master_observers LIMIT 1);
 
 -- 5. Refresh Schema Cache
 NOTIFY pgrst, 'reload schema';
+
+CREATE TABLE IF NOT EXISTS public.audit_tps (
+  id uuid default gen_random_uuid() primary key,
+  waktu timestamp with time zone,
+  ruangan text,
+  supervisor text,
+  checklist_json jsonb,
+  keterangan_json jsonb,
+  persentase numeric,
+  status text,
+  temuan text,
+  rekomendasi text,
+  dokumentasi text[],
+  nama_pj text,
+  ttd_pj text,
+  ttd_ipcn text,
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
+ALTER TABLE IF EXISTS "public"."audit_tps" DISABLE ROW LEVEL SECURITY;
+
+CREATE TABLE IF NOT EXISTS public.supervisors_tps (
+  id uuid default gen_random_uuid() primary key,
+  nama text not null,
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
+ALTER TABLE IF EXISTS "public"."supervisors_tps" DISABLE ROW LEVEL SECURITY;
+
+INSERT INTO public.supervisors_tps (nama)
+SELECT name FROM unnest(ARRAY[
+  'IPCN_Adi Tresa Purnama'
+]) AS name
+WHERE NOT EXISTS (SELECT 1 FROM public.supervisors_tps LIMIT 1);

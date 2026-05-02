@@ -145,7 +145,7 @@ export function DocumentationUploader({ images, setImages }: DocumentationUpload
             <X className="w-6 h-6"/>
           </button>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={previewImage} className="max-w-[95vw] max-h-[90vh] object-contain rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/10" onClick={e => e.stopPropagation()} />
+          <img src={previewImage} alt="Preview Dokumentasi" className="max-w-[95vw] max-h-[90vh] object-contain rounded-2xl shadow-[0_0_50px_rgba(0,0,0,0.5)] border border-white/10" onClick={e => e.stopPropagation()} />
         </div>
       )}
     </>

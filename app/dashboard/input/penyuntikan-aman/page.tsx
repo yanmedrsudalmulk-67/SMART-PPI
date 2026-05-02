@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { LiveStatisticsCard } from '@/components/LiveStatisticsCard';
 import { useRouter } from 'next/navigation';
 import { 
   ArrowLeft, 
@@ -62,6 +63,7 @@ type Observer = { id: string; nama: string };
 export default function PenyuntikanAmanPage() {
   const router = useRouter();
   const { userRole } = useAppContext();
+  const isIPCN = userRole === 'IPCN' || userRole === 'Admin';
   
   const [startTime, setStartTime] = useState<Date | null>(null);
   const [observer, setObserver] = useState('');
@@ -104,9 +106,19 @@ export default function PenyuntikanAmanPage() {
       const supabase = getSupabase();
       const { data, error } = await supabase.from('master_observers').select('*').order('nama');
       if (error) throw error;
-      if (data) setObservers(data);
+      
+      const hasAdi = data?.some(s => s.nama === 'IPCN_Adi Tresa Purnama');
+      let finalData = data || [];
+      if (!hasAdi) {
+        finalData = [{ nama: 'IPCN_Adi Tresa Purnama' }, ...finalData];
+      }
+      setObservers(finalData);
+      if (finalData.length > 0 && !observer) {
+        setObserver(finalData[0].nama);
+      }
     } catch (err) {
       setObservers([{ id: '1', nama: 'IPCN_Adi Tresa Purnama' }]);
+      setObserver('IPCN_Adi Tresa Purnama');
     }
   };
 
@@ -115,21 +127,30 @@ export default function PenyuntikanAmanPage() {
     try {
       const supabase = getSupabase();
       if (editObserverId) {
-        const { error } = await supabase.from('master_observers').update({ nama: newObserverName }).eq('id', editObserverId);
-        if (error) throw error;
-        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o));
+        if (!editObserverId.startsWith('local-')) {
+          await supabase.from('master_observers').update({ nama: newObserverName }).eq('id', editObserverId);
+        }
+        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o).sort((a,b) => a.nama.localeCompare(b.nama)));
       } else {
         const { data, error } = await supabase.from('master_observers').insert([{ nama: newObserverName }]).select();
-        if (error) throw error;
-        if (data && data.length > 0) {
+        if (!error && data && data.length > 0) {
           setObservers(prev => [...prev, data[0]].sort((a,b) => a.nama.localeCompare(b.nama)));
+        } else {
+          setObservers(prev => [...prev, { id: 'local-' + Date.now().toString(), nama: newObserverName }].sort((a,b) => a.nama.localeCompare(b.nama)));
         }
       }
       setNewObserverName('');
       setEditObserverId(null);
     } catch (err) {
-      console.error(err);
-      alert('Gagal menyimpan observer.');
+      console.error('Save observer non-fatal fallback:', err);
+      // Fallback local update
+      if (editObserverId) {
+        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o).sort((a,b) => a.nama.localeCompare(b.nama)));
+      } else {
+        setObservers(prev => [...prev, { id: 'local-' + Date.now().toString(), nama: newObserverName }].sort((a,b) => a.nama.localeCompare(b.nama)));
+      }
+      setNewObserverName('');
+      setEditObserverId(null);
     }
   };
 
@@ -137,13 +158,19 @@ export default function PenyuntikanAmanPage() {
     if (!confirm('Hapus observer ini?')) return;
     try {
       const supabase = getSupabase();
-      const { error } = await supabase.from('master_observers').delete().eq('id', id);
-      if (error) throw error;
+      if (!id.startsWith('local-')) {
+        await supabase.from('master_observers').delete().eq('id', id);
+      }
       setObservers(prev => prev.filter(o => o.id !== id));
-      if (observer === id) setObserver('');
+      if (observer === (observers.find(o => o.id === id)?.nama)) {
+        setObserver('');
+      }
     } catch (err) {
-      console.error(err);
-      alert('Gagal menghapus observer.');
+      console.error('Delete observer fallback:', err);
+      setObservers(prev => prev.filter(o => o.id !== id));
+      if (observer === (observers.find(o => o.id === id)?.nama)) {
+        setObserver('');
+      }
     }
   };
 
@@ -164,17 +191,15 @@ export default function PenyuntikanAmanPage() {
     });
 
     const persentase = dinilai > 0 ? Math.round((patuh / dinilai) * 100) : 0;
-    let color = 'text-slate-400';
-    let bg = 'bg-slate-500/10';
     let status = 'Belum Dinilai';
 
     if (dinilai > 0) {
-      if (persentase >= 80) { color = 'text-emerald-400'; bg = 'bg-emerald-500/10'; status = 'Patuh'; }
-      else if (persentase >= 60) { color = 'text-amber-400'; bg = 'bg-amber-500/10'; status = 'Perlu Perbaikan'; }
-      else { color = 'text-red-400'; bg = 'bg-red-500/10'; status = 'Tidak Patuh'; }
+      if (persentase >= 80) status = 'Patuh';
+      else if (persentase >= 60) status = 'Perlu Perbaikan';
+      else status = 'Tidak Patuh';
     }
 
-    return { patuh, dinilai, persentase, color, bg, status };
+    return { patuh, dinilai, persentase, status };
   }, [data]);
 
   
@@ -267,19 +292,16 @@ export default function PenyuntikanAmanPage() {
             <h2 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-500 font-heading">
               <Clock className="w-4 h-4 text-blue-400" /> Waktu Audit
             </h2>
-            <div className="bg-white/5 p-5 rounded-2xl border border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 shadow-inner p-1">
               <div>
-                <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-1 font-bold">Waktu Real-time</p>
-                <p className="text-base font-bold text-white font-heading tracking-wide">
-                  {startTime ? `${startTime.toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '/')} – ${startTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}` : '-'}
-                </p>
+                <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">Tanggal & Waktu</label>
+                <input 
+                  type="datetime-local" 
+                  value={getLocalIsoString(startTime)}
+                  onChange={(e) => setStartTime(new Date(e.target.value))}
+                  className="w-full bg-navy-dark/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-all appearance-none"
+                />
               </div>
-              <input 
-                type="datetime-local" 
-                value={getLocalIsoString(startTime)}
-                onChange={(e) => setStartTime(new Date(e.target.value))}
-                className="bg-navy-dark border border-white/10 rounded-xl px-4 py-3 text-sm text-blue-400 outline-none focus:border-blue-500/50 transition-all font-mono shadow-inner accent-blue-600"
-              />
             </div>
           </div>
 
@@ -290,7 +312,7 @@ export default function PenyuntikanAmanPage() {
                 <h2 className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
                   <User className="w-3.5 h-3.5 text-blue-400" /> Supervisor
                 </h2>
-                {(userRole === 'IPCN' || userRole === 'Admin') && (
+                {isIPCN && (
                   <button type="button" onClick={() => setIsObserverModalOpen(true)} className="p-1.5 bg-white/5 hover:bg-white/10 rounded-lg text-blue-400 transition-all shadow-sm">
                     <Settings className="w-3.5 h-3.5" />
                   </button>
@@ -299,11 +321,11 @@ export default function PenyuntikanAmanPage() {
               <select 
                 value={observer}
                 onChange={(e) => setObserver(e.target.value)}
-                className="w-full bg-white/5 border border-white/5 rounded-2xl px-4 py-4 text-sm text-white outline-none focus:border-blue-500/50 appearance-none transition-all hover:bg-white/8"
+                className="w-full bg-white/5 border border-white/5 rounded-2xl px-4 py-4 text-sm text-white outline-none focus:border-blue-500/50 appearance-none transition-all hover:bg-white/8 cursor-pointer"
                 required
               >
                 <option value="" className="bg-navy-dark text-slate-400">Pilih Supervisor...</option>
-                {observers.map(o => <option key={o.id} value={o.nama} className="bg-navy-dark">{o.nama}</option>)}
+                {observers.map(o => <option key={o.id || o.nama} value={o.nama} className="bg-navy-dark">{o.nama}</option>)}
               </select>
             </div>
 
@@ -367,12 +389,12 @@ export default function PenyuntikanAmanPage() {
               {checklistItems.map((item) => (
                 <div key={item.id} className="space-y-3">
                   <p className="text-sm font-medium text-slate-300 leading-relaxed">{item.label}</p>
-                  <div className="flex p-1 bg-white/5 rounded-xl border border-white/10 w-full shadow-inner">
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full shrink-0">
                     <button
                       type="button"
                       onClick={() => toggleItem(item.id, 'ya')}
-                      className={`flex-1 py-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${
-                        data[item.id] === 'ya' ? 'bg-blue-600 text-white shadow-lg grow' : 'text-slate-500 hover:text-slate-300'
+                      className={`py-3 px-2 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all border ${
+                        data[item.id] === 'ya' ? 'bg-blue-600/20 text-blue-400 border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.2)]' : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'
                       }`}
                     >
                       Ya
@@ -380,8 +402,8 @@ export default function PenyuntikanAmanPage() {
                     <button
                       type="button"
                       onClick={() => toggleItem(item.id, 'tidak')}
-                      className={`flex-1 py-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${
-                        data[item.id] === 'tidak' ? 'bg-red-600 text-white shadow-lg grow' : 'text-slate-500 hover:text-slate-300'
+                      className={`py-3 px-2 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all border ${
+                        data[item.id] === 'tidak' ? 'bg-red-600 text-white shadow-lg grow' : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'
                       }`}
                     >
                       Tidak
@@ -389,8 +411,8 @@ export default function PenyuntikanAmanPage() {
                     <button
                       type="button"
                       onClick={() => toggleItem(item.id, 'na')}
-                      className={`flex-1 py-3 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${
-                        data[item.id] === 'na' ? 'bg-white/10 text-white grow' : 'text-slate-500 hover:text-slate-300'
+                      className={`py-3 px-2 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all border ${
+                        data[item.id] === 'na' ? 'bg-white/10 text-white grow' : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'
                       }`}
                     >
                       N/A
@@ -402,29 +424,15 @@ export default function PenyuntikanAmanPage() {
           </div>
         </div>
 
-        {/* SIDEBAR-STYLE ANALYTICS CARD */}
-        <div className="glass-card p-6 sm:p-8 rounded-[2rem] border-white/5 shadow-xl flex flex-col items-center justify-center relative overflow-hidden">
-          <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 blur-[80px] rounded-full -z-10 ${stats.bg.replace('/10', '/30')}`} />
-          <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-8 w-full text-left">Ringkasan Kepatuhan</h3>
-          
-          <div className="relative w-40 h-40 flex items-center justify-center mb-6">
-            <svg className="w-full h-full -rotate-90" viewBox="0 0 80 80">
-              <circle cx="40" cy="40" r="36" fill="transparent" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
-              <motion.circle 
-                cx="40" cy="40" r="36" fill="transparent" stroke="currentColor" strokeWidth="8" 
-                strokeDasharray={2 * Math.PI * 36}
-                strokeDashoffset={2 * Math.PI * 36 - (stats.persentase / 100) * (2 * Math.PI * 36)}
-                strokeLinecap="round" className={stats.color}
-                initial={{ strokeDashoffset: 2 * Math.PI * 36 }}
-                animate={{ strokeDashoffset: 2 * Math.PI * 36 - (stats.persentase / 100) * (2 * Math.PI * 36) }}
-                transition={{ duration: 1 }}
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-3xl font-heading font-bold text-white">{stats.persentase}%</span>
-              <span className={`text-[10px] font-bold uppercase tracking-widest mt-1 ${stats.color}`}>{stats.status}</span>
-            </div>
-          </div>
+        <div className="mt-8 mb-8">
+          <LiveStatisticsCard 
+            totalDinilai={stats.dinilai}
+            totalPatuh={stats.patuh}
+            totalTidakPatuh={stats.dinilai - stats.patuh}
+            persentase={stats.persentase}
+            statusText={stats.status}
+            title="HASIL OBSERVASI PENYUNTIKAN"
+          />
         </div>
 
         {/* DOKUMENTASI */}
@@ -460,15 +468,33 @@ export default function PenyuntikanAmanPage() {
 
         {/* SUBMIT */}
         <div className="pt-4">
-          <button
+          <motion.button
             type="submit"
             disabled={isSubmitting || !observer || !unit || !profesi || !jenisTindakan || Object.values(data).some(v => v === null)}
-            className="w-full flex justify-center items-center gap-4 py-5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-[0_10px_30px_rgba(59,130,246,0.4)] text-white text-base font-bold uppercase tracking-[0.2em] rounded-2xl transition-all hover:scale-[1.01] border border-white/10 relative overflow-hidden group disabled:opacity-50"
+            animate={{
+              boxShadow: [
+                "0 0 0 0 rgba(37, 99, 235, 0)",
+                "0 0 0 15px rgba(37, 99, 235, 0.3)",
+                "0 0 0 0 rgba(37, 99, 235, 0)"
+              ]
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="w-full flex justify-center items-center gap-4 py-5 bg-blue-600 hover:bg-blue-500 text-white text-base font-bold uppercase tracking-[0.2em] rounded-2xl transition-all border border-blue-400/30 group disabled:opacity-50 overflow-hidden relative shadow-[0_0_20px_rgba(37,99,235,0.4)] glow-blue"
           >
-            {isSubmitting ? <RefreshCw className="w-5 h-5 animate-spin" /> : (
-              <><Save className="w-5 h-5" /><span>Simpan Data</span></>
+            <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-1000 ease-in-out" />
+            {isSubmitting ? (
+              <RefreshCw className="w-5 h-5 animate-spin" />
+            ) : (
+              <>
+                <Save className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                <span>Simpan Data</span>
+              </>
             )}
-          </button>
+          </motion.button>
         </div>
       </form>
 
@@ -486,19 +512,30 @@ export default function PenyuntikanAmanPage() {
                 <button onClick={() => setIsObserverModalOpen(false)} className="p-2 text-slate-500"><X className="w-5 h-5" /></button>
               </div>
               <div className="flex gap-2 mb-6">
-                <input type="text" value={newObserverName} onChange={(e) => setNewObserverName(e.target.value)} placeholder="Nama Supervisor..." className="flex-1 bg-navy-dark border border-white/10 rounded-xl px-4 py-3 text-sm text-white" />
-                <button onClick={saveObserver} className="px-5 py-3 bg-blue-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-blue-500 transition-colors shadow-lg">
-                  {editObserverId ? <RefreshCw className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                </button>
+                <input 
+                  type="text" 
+                  value={newObserverName} 
+                  onChange={(e) => setNewObserverName(e.target.value)} 
+                  placeholder="Nama Supervisor..." 
+                  disabled={!isIPCN}
+                  className="flex-1 bg-navy-dark border border-white/10 rounded-xl px-4 py-3 text-sm text-white outline-none focus:border-blue-500/50 disabled:opacity-50" 
+                />
+                {isIPCN && (
+                  <button onClick={saveObserver} className="px-5 py-3 bg-blue-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-blue-500 transition-colors shadow-lg">
+                    {editObserverId ? <RefreshCw className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                  </button>
+                )}
               </div>
               <div className="max-h-[350px] overflow-y-auto space-y-3 custom-scrollbar">
                 {observers.map(o => (
-                  <div key={o.id} className="flex items-center justify-between p-4 bg-navy-dark/40 border border-white/5 rounded-2xl">
+                  <div key={o.id || o.nama} className="flex items-center justify-between p-4 bg-navy-dark/40 border border-white/5 rounded-2xl">
                     <span className="text-sm font-medium text-slate-300">{o.nama}</span>
-                    <div className="flex gap-2">
-                      <button onClick={() => { setNewObserverName(o.nama); setEditObserverId(o.id); }} className="p-2 text-slate-500 hover:text-blue-400 transition-all"><Edit2 className="w-4 h-4" /></button>
-                      <button onClick={() => deleteObserver(o.id)} className="p-2 text-slate-500 hover:text-red-400 transition-all"><Trash2 className="w-4 h-4" /></button>
-                    </div>
+                    {isIPCN && (
+                      <div className="flex gap-2">
+                        <button onClick={() => { setNewObserverName(o.nama); setEditObserverId(o.id); }} className="p-2 text-slate-500 hover:text-blue-400 transition-all"><Edit2 className="w-4 h-4" /></button>
+                        <button onClick={() => deleteObserver(o.id)} className="p-2 text-slate-500 hover:text-red-400 transition-all"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

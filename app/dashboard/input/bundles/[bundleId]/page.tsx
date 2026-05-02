@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useRef, useMemo, useEffect } from 'react';
+import { LiveStatisticsCard } from '@/components/LiveStatisticsCard';
 import { useRouter, useParams } from 'next/navigation';
 import { 
-  ArrowLeft, Save, CheckCircle2, Clock, User, Building2, 
+  Activity, ArrowLeft, Save, CheckCircle2, Clock, User, Building2, 
   Settings, Camera, Upload, Signature, ClipboardCheck, Trash2, RefreshCw, Plus, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -176,6 +177,7 @@ export default function BundlesInputForm() {
   // Image compression Helper
   
   const dataURLToBlob = (dataURL: string) => {
+    if (!dataURL || !dataURL.includes(';base64,')) return null;
     const parts = dataURL.split(';base64,');
     const contentType = parts[0].split(':')[1];
     const raw = window.atob(parts[1]);
@@ -368,12 +370,6 @@ export default function BundlesInputForm() {
             <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-blue-400 font-heading">
               Indikator Kepatuhan
             </h2>
-            <div className="text-right">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Compliance</p>
-              <p className={`text-2xl font-bold font-heading ${calcColor(compliance, validCount)}`}>
-                {validCount === 0 ? '-' : `${compliance}%`}
-              </p>
-            </div>
           </div>
           
           <div className="space-y-4">
@@ -419,6 +415,17 @@ export default function BundlesInputForm() {
               </div>
             ))}
           </div>
+
+          <div className="pt-4 border-t border-white/5">
+            <LiveStatisticsCard 
+              totalDinilai={validCount}
+              totalPatuh={yesCount}
+              totalTidakPatuh={validCount - yesCount}
+              persentase={compliance}
+              statusText={compliance >= 85 ? 'Baik' : compliance >= 70 ? 'Cukup' : 'Perlu Tindak Lanjut'}
+              title={`HASIL ${config.title.toUpperCase()}`}
+            />
+          </div>
         </div>
 
         {/* SECTION: DOKUMENTASI */}
@@ -455,21 +462,40 @@ export default function BundlesInputForm() {
 
         {/* BUTTON SIMPAN */}
         <div className="pt-4">
-          <button
+          <motion.button
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.98 }}
             type="submit"
             disabled={isSubmitting}
-            className="w-full flex justify-center items-center gap-4 py-5 bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 shadow-[0_10px_30px_rgba(59,130,246,0.4)] hover:shadow-[0_15px_40px_rgba(59,130,246,0.6)] text-white text-base font-bold uppercase tracking-[0.2em] rounded-2xl transition-all hover:scale-[1.01] active:scale-[0.98] border border-white/10 relative overflow-hidden group disabled:opacity-50"
+            animate={{
+              boxShadow: [
+                "0 0 0 0 rgba(37, 99, 235, 0)",
+                "0 0 0 10px rgba(37, 99, 235, 0.2)",
+                "0 0 0 0 rgba(37, 99, 235, 0)"
+              ]
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="w-full py-6 rounded-[2.5rem] bg-blue-600 hover:bg-blue-700 text-white font-heading font-black text-sm uppercase tracking-[0.4em] shadow-2xl flex items-center justify-center gap-5 group disabled:opacity-50 border border-white/10 glow-blue relative overflow-hidden"
           >
-            <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-1000 ease-in-out" />
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_2s_infinite]" />
             {isSubmitting ? (
-              <RefreshCw className="w-5 h-5 animate-spin" />
+              <>
+                <RefreshCw className="w-6 h-6 animate-spin" />
+                Sedang Memproses...
+              </>
             ) : (
               <>
-                <Save className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                <span>Simpan Data</span>
+                <div className="p-2 bg-white/10 rounded-xl group-hover:scale-110 transition-transform">
+                  <Save className="w-6 h-6" />
+                </div>
+                Simpan Data
               </>
             )}
-          </button>
+          </motion.button>
         </div>
 
       </form>

@@ -1,454 +1,464 @@
-'use client';
-
-import { useState, useEffect, useMemo } from 'react';
-import { motion } from 'motion/react';
-import { 
-  Activity, 
-  Beaker, 
-  User, 
-  Droplet, 
-  Calendar, 
-  Clock, 
-  Building2, 
-  Stethoscope,
-  TrendingUp,
-  Target
-} from 'lucide-react';
-import { 
-  ResponsiveContainer, 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend,
-  ReferenceLine
-} from 'recharts';
+import React, { useState, useEffect, useMemo } from 'react';
 import { getSupabase } from '@/lib/supabase';
+import { 
+  TrendingUp, Activity, Search, Calendar, ChevronDown, CheckCircle2, 
+  XCircle, Filter, PieChart, BarChart2, TrendingDown, Target, List, Download, Printer, Target as TargetIcon, User, Building2, ShieldCheck
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area, ReferenceLine
+} from 'recharts';
+import { format, parseISO } from 'date-fns';
+import { useAppContext } from '@/components/providers';
 
-const MomenCard = ({ title, subtitle, momen, icon: Icon, color, data }: any) => {
-  const patuh = data ? data[momen]?.patuh : 0;
-  const peluang = data ? data[momen]?.peluang : 0;
-  const persentase = peluang > 0 ? Math.round((patuh / peluang) * 100) : 0;
-  
-  const colorMap: any = {
-    'blue': { text: 'text-blue-500', bg: 'bg-blue-500/10', shadow: 'bg-blue-500' },
-    'purple': { text: 'text-purple-500', bg: 'bg-purple-500/10', shadow: 'bg-purple-500' },
-    'rose': { text: 'text-rose-500', bg: 'bg-rose-500/10', shadow: 'bg-rose-500' },
-    'emerald': { text: 'text-emerald-500', bg: 'bg-emerald-500/10', shadow: 'bg-emerald-500' },
-    'amber': { text: 'text-amber-500', bg: 'bg-amber-500/10', shadow: 'bg-amber-500' },
-  };
-
-  const selectedColor = colorMap[color] || colorMap.blue;
-
-  return (
-    <div className="glass-card p-6 rounded-2xl border-white/5 relative overflow-hidden group min-h-[160px] flex flex-col justify-between">
-      <div className={`absolute top-0 right-0 w-24 h-24 blur-[40px] rounded-full -z-10 ${selectedColor.shadow} opacity-20 group-hover:opacity-40 transition-opacity`} />
-      
-      <div className="space-y-3">
-        <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-xl shrink-0 ${selectedColor.bg} ${selectedColor.text}`}>
-            <Icon className="w-4 h-4" />
-          </div>
-          <h3 className="font-bold text-slate-200 text-xs tracking-wider uppercase">{title}</h3>
-        </div>
-        <p className="text-[11px] text-slate-400 font-medium leading-relaxed">{subtitle}</p>
-      </div>
-      
-      <div className="mt-4">
-        <div className="flex items-end justify-between mb-2">
-          <div className="flex items-baseline gap-1">
-            <span className={`text-2xl font-heading font-bold ${persentase >= 85 ? 'text-blue-400' : persentase >= 70 ? 'text-amber-400' : 'text-red-400'}`}>
-              {persentase}%
-            </span>
-          </div>
-          <p className="text-[10px] font-bold text-white">{patuh}/{peluang}</p>
-        </div>
-        
-        <div className="w-full h-1 bg-white/5 rounded-full overflow-hidden">
-          <motion.div 
-            initial={{ width: 0 }}
-            animate={{ width: `${persentase}%` }}
-            transition={{ duration: 1, delay: 0.2 }}
-            className={`h-full rounded-full ${persentase >= 85 ? 'bg-blue-500' : persentase >= 70 ? 'bg-amber-500' : 'bg-red-500'}`}
-          />
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default function HandHygieneReport({ selectedDate, period, unitFilter }: any) {
-  const [data, setData] = useState<any>(null);
-  const [records, setRecords] = useState<any[]>([]);
+export default function HandHygieneReport({ 
+  filters 
+}: { 
+  filters: { dateRange: { from: string, to: string }, unitFilter: string, searchQuery: string } 
+}) {
+  const { hospitalLogoUrl } = useAppContext();
+  const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [chartType, setChartType] = useState<'line' | 'bar'>('line');
+  const [periodFilter, setPeriodFilter] = useState<'harian' | 'mingguan' | 'bulanan' | 'triwulan' | 'semester' | 'tahunan'>('bulanan');
+  const [selectedProfessions, setSelectedProfessions] = useState<string[]>([]);
+  const [professionsOpen, setProfessionsOpen] = useState(false);
+  const supabase = getSupabase();
 
   useEffect(() => {
-    async function fetchData() {
+    const fetchData = async () => {
       setLoading(true);
-      try {
-        const supabase = getSupabase();
-        
-        let query = supabase.from('audit_hand_hygiene').select('*');
-        
-        if (unitFilter && unitFilter !== 'Semua Unit') {
-          query = query.eq('unit', unitFilter);
-        }
-
-        // Apply time filter based on period
-        const date = new Date(selectedDate);
-        if (period === 'Harian') {
-          const formattedDate = date.toISOString().split('T')[0];
-          query = query.gte('start_time', `${formattedDate}T00:00:00Z`)
-                       .lte('start_time', `${formattedDate}T23:59:59Z`);
-        } else if (period === 'Bulanan') {
-          const firstDay = new Date(date.getFullYear(), date.getMonth(), 1).toISOString();
-          const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59).toISOString();
-          query = query.gte('start_time', firstDay).lte('start_time', lastDay);
-        } else if (period === 'Triwulan') {
-          const quarter = Math.floor(date.getMonth() / 3);
-          const firstDay = new Date(date.getFullYear(), quarter * 3, 1).toISOString();
-          const lastDay = new Date(date.getFullYear(), (quarter + 1) * 3, 0, 23, 59, 59).toISOString();
-          query = query.gte('start_time', firstDay).lte('start_time', lastDay);
-        } else if (period === 'Tahunan') {
-          const firstDay = new Date(date.getFullYear(), 0, 1).toISOString();
-          const lastDay = new Date(date.getFullYear(), 11, 31, 23, 59, 59).toISOString();
-          query = query.gte('start_time', firstDay).lte('start_time', lastDay);
-        }
-        
-        const { data: fetchedRecords, error } = await query.order('start_time', { ascending: false });
-        if (error) throw error;
-        
-        setRecords(fetchedRecords || []);
-
-        const agg: Record<string, { patuh: number, peluang: number }> = {
-          m1: { patuh: 0, peluang: 0 },
-          m2: { patuh: 0, peluang: 0 },
-          m3: { patuh: 0, peluang: 0 },
-          m4: { patuh: 0, peluang: 0 },
-          m5: { patuh: 0, peluang: 0 },
-          total: { patuh: 0, peluang: 0 }
-        };
-
-        if (fetchedRecords) {
-          fetchedRecords.forEach(row => {
-            const processMomen = (m: string) => {
-              const val = row[m];
-              if (val === 'hr' || val === 'hw') { agg[m].patuh++; agg[m].peluang++; }
-              else if (val === 'miss') { agg[m].peluang++; }
-            };
-            
-            processMomen('m1');
-            processMomen('m2');
-            processMomen('m3');
-            processMomen('m4');
-            processMomen('m5');
-            
-            agg.total.patuh += row.patuh || 0;
-            agg.total.peluang += row.peluang || 0;
-          });
-        }
-        
-        setData(agg);
-      } catch (err) {
-        console.error("Error fetching HH report:", err);
-      } finally {
-        setLoading(false);
+      let query = supabase.from('audit_hand_hygiene').select('*').order('start_time', { ascending: false });
+      
+      const { data: result, error } = await query;
+      if (!error && result) {
+        setData(result);
       }
-    }
+      setLoading(false);
+    };
+
     fetchData();
-  }, [unitFilter, period, selectedDate]);
+  }, [supabase]);
 
-  const runChartData = useMemo(() => {
-    if (!records.length) return [];
-
-    // Group by Month or Week or Day depending on view
-    // For Run Chart as requested (Triwulan, Tahunan), group by Month
-    const monthlyData: Record<string, { patuh: number, peluang: number }> = {};
-    
-    records.forEach(row => {
-      const date = new Date(row.start_time);
-      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      
-      if (!monthlyData[key]) {
-        monthlyData[key] = { patuh: 0, peluang: 0 };
+  // Frontend filtering
+  const filteredData = useMemo(() => {
+    return data.filter(item => {
+      // Date filtering (basic)
+      if (filters.dateRange && filters.dateRange.from && filters.dateRange.to && item.start_time) {
+        const itemDateStr = String(item.start_time || '').split('T')[0];
+        if (itemDateStr < filters.dateRange.from || itemDateStr > filters.dateRange.to) {
+          return false;
+        }
       }
-      
-      monthlyData[key].patuh += row.patuh || 0;
-      monthlyData[key].peluang += row.peluang || 0;
+      // Unit filtering
+      if (filters.unitFilter && filters.unitFilter !== 'Semua Unit') {
+        if (item.unit !== filters.unitFilter) return false;
+      }
+      // Profession filtering (Multi-select)
+      if (selectedProfessions.length > 0) {
+        if (!item.profesi || !selectedProfessions.includes(item.profesi.trim().toUpperCase())) {
+          return false;
+        }
+      }
+      // Search
+      if (filters.searchQuery) {
+        const query = filters.searchQuery.toLowerCase();
+        if (!item.observer?.toLowerCase().includes(query) && 
+            !item.unit?.toLowerCase().includes(query) &&
+            !item.profesi?.toLowerCase().includes(query)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [data, filters, selectedProfessions]);
+
+  // Get unique professions for filter
+  const allProfessions = useMemo(() => {
+    const standardProfs = [
+      "DOKTER", 
+      "DOKTER SPESIALIS", 
+      "PERAWAT", 
+      "BIDAN", 
+      "ANALIS LABORATORIUM", 
+      "RADIOGRAFER", 
+      "PRAMUSAJI"
+    ];
+    const profs = new Set<string>(standardProfs);
+    data.forEach(item => {
+      if (item.profesi) profs.add(item.profesi.trim().toUpperCase());
+    });
+    return Array.from(profs).sort();
+  }, [data]);
+
+  const { trendData, summaryStats, momentStats } = useMemo(() => {
+    if (filteredData.length === 0) return { 
+      trendData: [], 
+      summaryStats: { avg: 0, count: 0, high: 0, low: 0, patuh: 0, peluang: 0 },
+      momentStats: { m1: 0, m2: 0, m3: 0, m4: 0, m5: 0 }
+    };
+
+    // Grouping by period
+    const getGroupKey = (dStr: string) => {
+        if(!dStr) return "Unknown";
+        const date = new Date(dStr);
+        const y = date.getFullYear();
+        const m = date.getMonth();
+        const d = date.getDate();
+        if(periodFilter === 'harian') return `${d} ${["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Ags","Sep","Okt","Nov","Des"][m]}`;
+        if(periodFilter === 'bulanan') return `${["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Ags","Sep","Okt","Nov","Des"][m]} ${y}`;
+        if(periodFilter === 'triwulan') return `TW${Math.floor(m/3)+1} ${y}`;
+        if(periodFilter === 'semester') return `SM${Math.floor(m/6)+1} ${y}`;
+        return `${y}`;
+    };
+
+    const periodMap = new Map<string, any[]>();
+    filteredData.forEach(row => {
+      const key = getGroupKey(row.start_time || '');
+      if(!periodMap.has(key)) periodMap.set(key, []);
+      periodMap.set(key, [...(periodMap.get(key) || []), row]);
     });
 
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    const parsedKeys = Array.from(periodMap.keys());
+    parsedKeys.reverse(); // simple chronological sort approximation
 
-    return Object.entries(monthlyData)
-      .map(([key, val]) => {
-        const [year, monthIdx] = key.split('-');
-        return {
-          name: `${monthNames[parseInt(monthIdx) - 1]} ${year}`,
-          compliance: val.peluang > 0 ? Math.round((val.patuh / val.peluang) * 100) : 0,
-          standard: 85, // Kemenkes Standard
-          sortKey: key
-        };
-      })
-      .sort((a, b) => a.sortKey.localeCompare(b.sortKey));
-  }, [records]);
+    const trend = parsedKeys.map(k => {
+       const recs = periodMap.get(k)!;
+       const avg = recs.reduce((sum, r) => sum + (r.persentase || 0), 0) / recs.length;
+       return { name: k, val: Math.round(avg) };
+    });
+
+    const allPerc = filteredData.map(r => r.persentase || 0);
+    const avg = allPerc.reduce((a,b)=>a+b,0) / (allPerc.length || 1);
+    const high = Math.max(0, ...allPerc);
+    const low = allPerc.length > 0 ? Math.min(...allPerc) : 0;
+    
+    let totalPatuh = 0;
+    let totalPeluang = 0;
+    
+    const mStats = { m1: {p:0, t:0}, m2: {p:0, t:0}, m3: {p:0, t:0}, m4: {p:0, t:0}, m5: {p:0, t:0} };
+
+    filteredData.forEach(r => {
+      totalPatuh += (r.patuh || 0);
+      totalPeluang += (r.peluang || 0);
+      
+      const moments = ['m1', 'm2', 'm3', 'm4', 'm5'] as const;
+      moments.forEach(m => {
+        if (r[m] === 'hr' || r[m] === 'hw') { mStats[m].p++; mStats[m].t++; }
+        else if (r[m] === 'miss') { mStats[m].t++; }
+      });
+    });
+
+    const momentPercentages = {
+      m1: mStats.m1.t > 0 ? Math.round((mStats.m1.p / mStats.m1.t) * 100) : 0,
+      m2: mStats.m2.t > 0 ? Math.round((mStats.m2.p / mStats.m2.t) * 100) : 0,
+      m3: mStats.m3.t > 0 ? Math.round((mStats.m3.p / mStats.m3.t) * 100) : 0,
+      m4: mStats.m4.t > 0 ? Math.round((mStats.m4.p / mStats.m4.t) * 100) : 0,
+      m5: mStats.m5.t > 0 ? Math.round((mStats.m5.p / mStats.m5.t) * 100) : 0,
+    };
+
+    return { 
+      trendData: trend, 
+      summaryStats: {
+        avg: Math.round(avg),
+        count: filteredData.length,
+        high,
+        low,
+        patuh: totalPatuh,
+        peluang: totalPeluang
+      },
+      momentStats: momentPercentages
+    };
+  }, [filteredData, periodFilter]);
+
+  const mapMomentAction = (val: string | null) => {
+    if (val === 'hr') return <span className="px-2 py-1 bg-blue-50 text-blue-700 rounded font-bold text-[9px]">Handrub</span>;
+    if (val === 'hw') return <span className="px-2 py-1 bg-emerald-50 text-emerald-700 rounded font-bold text-[9px]">Handwash</span>;
+    if (val === 'miss') return <span className="px-2 py-1 bg-rose-50 text-rose-700 rounded font-bold text-[9px]">Tdk HH</span>;
+    if (val === 'na') return <span className="px-2 py-1 bg-slate-200 text-force-black rounded font-bold text-[9px]">N/A</span>;
+    return <span className="text-force-black">-</span>;
+  };
+
+  const mapMomentText = (val: string | null) => {
+    if (val === 'hr') return 'Handrub';
+    if (val === 'hw') return 'Handwash';
+    if (val === 'miss') return 'Tidak HH';
+    if (val === 'na') return 'N/A';
+    return '-';
+  };
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center p-20 space-y-4">
-        <Activity className="w-12 h-12 text-blue-500 animate-pulse" />
-        <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">Memuat Data Laporan...</p>
+      <div className="w-full flex items-center justify-center p-20 animate-pulse">
+        <div className="w-16 h-16 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
       </div>
     );
   }
 
-  const totalPersen = data && data.total.peluang > 0 
-    ? Math.round((data.total.patuh / data.total.peluang) * 100) 
-    : 0;
-
-  const getMomenBadge = (val: string) => {
-    if (val === 'hr') return <span className="px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 text-[9px] font-bold">HR</span>;
-    if (val === 'hw') return <span className="px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-400 text-[9px] font-bold">HW</span>;
-    if (val === 'miss') return <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-400 text-[9px] font-bold">MISS</span>;
-    return <span className="px-2 py-0.5 rounded-full bg-slate-500/10 text-slate-500 text-[9px] font-bold">NA</span>;
-  };
-
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-500">
-      {/* Top Capaian Card */}
-      <div className="glass-card p-6 sm:p-8 rounded-[2.5rem] border-white/5 relative overflow-hidden flex flex-col md:flex-row items-center gap-8 shadow-2xl">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/10 blur-[80px] rounded-full pointer-events-none" />
-        
-        <div className="relative w-40 h-40 flex items-center justify-center shrink-0">
-          <svg className="w-full h-full -rotate-90" viewBox="0 0 80 80">
-            <circle cx="40" cy="40" r="36" fill="transparent" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
-            <motion.circle 
-              cx="40" cy="40" r="36" fill="transparent" 
-              stroke={totalPersen >= 85 ? '#3b82f6' : totalPersen >= 70 ? '#f59e0b' : '#ef4444'} 
-              strokeWidth="8" 
-              strokeDasharray={2 * Math.PI * 36}
-              strokeDashoffset={2 * Math.PI * 36 - (totalPersen / 100) * (2 * Math.PI * 36)}
-              strokeLinecap="round"
-              initial={{ strokeDashoffset: 2 * Math.PI * 36 }}
-              animate={{ strokeDashoffset: 2 * Math.PI * 36 - (totalPersen / 100) * (2 * Math.PI * 36) }}
-              transition={{ duration: 1.5, ease: "easeOut" }}
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <span className="text-4xl font-heading font-bold text-white">{totalPersen}%</span>
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mt-1">Total Capaian</span>
-          </div>
-        </div>
-        
-        <div className="space-y-4 flex-1">
-          <div>
-            <h2 className="text-2xl font-bold font-heading text-white tracking-tight flex items-center gap-3">
-              <Activity className="w-6 h-6 text-blue-400" /> Kepatuhan Kebersihan Tangan
-            </h2>
-            <p className="text-slate-400 mt-1 max-w-xl text-[13px] leading-relaxed">
-              Hasil audit kepatuhan terhadap 5 Momen Kebersihan Tangan sesuai standar World Health Organization (WHO) dan Kementerian Kesehatan.
-            </p>
-          </div>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-white/5 p-4 rounded-2xl border border-white/5 shadow-inner">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Total Peluang</p>
-              <p className="text-xl font-bold text-slate-200">{data?.total.peluang}</p>
-            </div>
-            <div className="bg-white/5 p-4 rounded-2xl border border-white/5 shadow-inner">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Dilakukan</p>
-              <p className="text-xl font-bold text-emerald-400">{data?.total.patuh}</p>
-            </div>
-            <div className="bg-white/5 p-4 rounded-2xl border border-white/5 shadow-inner">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Tidak Patuh</p>
-              <p className="text-xl font-bold text-rose-400">{data ? data.total.peluang - data.total.patuh : 0}</p>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-5 duration-500 pb-10">
 
-      {/* 5 Moments Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        <MomenCard 
-          title="Momen 1" 
-          subtitle="Sebelum kontak dengan pasien"
-          momen="m1" icon={User} color="blue" data={data} 
-        />
-        <MomenCard 
-          title="Momen 2" 
-          subtitle="Sebelum tindakan aseptik"
-          momen="m2" icon={Beaker} color="purple" data={data} 
-        />
-        <MomenCard 
-          title="Momen 3" 
-          subtitle="Setelah kontak dengan cairan tubuh pasien"
-          momen="m3" icon={Droplet} color="rose" data={data} 
-        />
-        <MomenCard 
-          title="Momen 4" 
-          subtitle="Setelah kontak dengan pasien"
-          momen="m4" icon={User} color="emerald" data={data} 
-        />
-        <MomenCard 
-          title="Momen 5" 
-          subtitle="Setelah kontak dengan lingkungan pasien"
-          momen="m5" icon={Activity} color="amber" data={data} 
-        />
-      </div>
-
-      {/* Run Chart Section - Visible for Triwulan, Tahunan */}
-      {(period === 'Triwulan' || period === 'Tahunan' || period === 'Semester') && runChartData.length > 0 && (
-        <div className="glass-card p-8 rounded-[2.5rem] border-white/5 shadow-2xl relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 blur-[80px] rounded-full pointer-events-none" />
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+      {/* HEADER LAPORAN / PRINT SECTION */}
+      <div className="bg-force-white rounded-[2rem] border border-slate-200 overflow-hidden shadow-2xl relative" id="print-area">
+        <div className="p-8 border-b border-slate-200 flex flex-wrap items-center justify-between gap-4 print:border-slate-300 bg-force-white">
+          <div className="flex items-center gap-4">
+            <div className={`w-16 h-16 flex-shrink-0 border rounded-xl flex items-center justify-center overflow-hidden backdrop-blur-md transition-colors duration-500 bg-white shadow-md p-2`}>
+              {hospitalLogoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={hospitalLogoUrl} alt="Logo RS" className="w-full h-full object-contain" />
+              ) : (
+                <ShieldCheck className="w-8 h-8 text-blue-600" />
+              )}
+            </div>
             <div>
-              <h3 className="text-xl font-heading font-bold text-white flex items-center gap-3">
-                <TrendingUp className="w-5 h-5 text-blue-400" /> Run Chart Capaian Kepatuhan
-              </h3>
-              <p className="text-slate-500 text-xs mt-1 uppercase tracking-widest font-bold">Tren Kepatuhan vs Standar Kemenkes (85%)</p>
+              <h2 className="text-2xl font-black text-force-black uppercase tracking-tight">LAPORAN MONITORING KEPATUHAN KEBERSIHAN TANGAN</h2>
+              <p className="text-sm font-bold text-force-black uppercase tracking-widest">UOBK RSUD AL-MULK KOTA SUKABUMI</p>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 bg-blue-500 rounded-full" />
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Capaian</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 border-t-2 border-emerald-500" />
-                <span className="text-[10px] font-bold text-emerald-400 uppercase tracking-widest">Standar (85%)</span>
-              </div>
-            </div>
-          </div>
-          
-          <div className="h-[350px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={runChartData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                <XAxis 
-                  dataKey="name" 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fontSize: 10, fill: '#64748b', fontWeight: 'bold' }} 
-                  dy={10}
-                />
-                <YAxis 
-                  axisLine={false} 
-                  tickLine={false} 
-                  tick={{ fontSize: 10, fill: '#64748b' }} 
-                  domain={[0, 100]}
-                />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#0f172a', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.1)', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' }}
-                  itemStyle={{ fontSize: '12px', fontWeight: 'bold' }}
-                  labelStyle={{ color: '#94a3b8', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '4px' }}
-                />
-                <ReferenceLine y={85} stroke="#10b981" strokeDasharray="5 5" label={{ position: 'right', value: 'Std 85%', fill: '#10b981', fontSize: 10, fontWeight: 'bold' }} />
-                <Line 
-                  type="monotone" 
-                  dataKey="compliance" 
-                  name="Kepatuhan"
-                  stroke="#3b82f6" 
-                  strokeWidth={4} 
-                  dot={{ r: 6, fill: '#3b82f6', strokeWidth: 2, stroke: '#fff' }}
-                  activeDot={{ r: 8, strokeWidth: 0 }}
-                  animationDuration={1500}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      )}
-
-      {/* Data Table Section */}
-      <div className="glass-card p-0 rounded-[2.5rem] border-white/5 overflow-hidden shadow-2xl">
-        <div className="p-8 border-b border-white/5 flex items-center justify-between">
-          <div>
-            <h3 className="text-xl font-heading font-bold text-white flex items-center gap-3">
-              <Calendar className="w-5 h-5 text-blue-400" /> Detail Data Audit
-            </h3>
-            <p className="text-slate-500 text-[11px] mt-1 font-bold uppercase tracking-widest">Daftar Pengisian Audit Hand Hygiene</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="px-3 py-1 bg-white/5 rounded-full text-[10px] font-bold text-blue-400 border border-white/5">
-              {records.length} Audit Ditemukan
-            </span>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+        {/* TABEL DATA */}
+        <div className="overflow-x-auto print:overflow-visible bg-force-white">
+          <table className="w-full min-w-[600px] text-center border-collapse print:text-[9px] bg-force-white text-force-black">
             <thead>
-              <tr className="bg-white/5 border-b border-white/5">
-                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-500">No</th>
-                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-500">Tanggal & Waktu</th>
-                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-500">Observer</th>
-                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-500">Unit</th>
-                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-500">Profesi</th>
-                <th className="px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-500 text-center">M1</th>
-                <th className="px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-500 text-center">M2</th>
-                <th className="px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-500 text-center">M3</th>
-                <th className="px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-500 text-center">M4</th>
-                <th className="px-4 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-500 text-center">M5</th>
-                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-500 text-right">Patuh</th>
-                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-500 text-right">Peluang</th>
-                <th className="px-6 py-4 text-[10px] font-bold uppercase tracking-widest text-slate-500 text-right">Hasil</th>
+              <tr className="bg-force-white text-[9px] font-bold uppercase tracking-widest text-force-black border-b border-slate-300">
+                <th className="px-3 py-3 text-center border-r border-slate-200 print:border-slate-300 whitespace-nowrap bg-force-white text-force-black">Waktu Mulai</th>
+                <th className="px-3 py-3 text-center border-r border-slate-200 print:border-slate-300 whitespace-nowrap bg-force-white text-force-black">Waktu Selesai</th>
+                <th className="px-3 py-3 text-center border-r border-slate-200 print:border-slate-300 whitespace-nowrap bg-force-white text-force-black">Observer</th>
+                <th className="px-3 py-3 text-center border-r border-slate-200 print:border-slate-300 whitespace-nowrap bg-force-white text-force-black">Unit / Ruangan</th>
+                <th className="px-3 py-3 text-center border-r border-slate-200 print:border-slate-300 whitespace-nowrap bg-force-white text-force-black">Profesi</th>
+                <th className="px-2 py-3 text-center border-r border-slate-200 print:border-slate-300 whitespace-nowrap bg-force-white text-force-black" title="Sebelum kontak dengan pasien">M1</th>
+                <th className="px-2 py-3 text-center border-r border-slate-200 print:border-slate-300 whitespace-nowrap bg-force-white text-force-black" title="Sebelum melakukan tindakan aseptik">M2</th>
+                <th className="px-2 py-3 text-center border-r border-slate-200 print:border-slate-300 whitespace-nowrap bg-force-white text-force-black" title="Sesudah menyentuh cairan tubuh pasien">M3</th>
+                <th className="px-2 py-3 text-center border-r border-slate-200 print:border-slate-300 whitespace-nowrap bg-force-white text-force-black" title="Sesudah kontak dengan pasien">M4</th>
+                <th className="px-2 py-3 text-center border-r border-slate-200 print:border-slate-300 whitespace-nowrap bg-force-white text-force-black" title="Sesudah menyentuh lingkungan pasien">M5</th>
+                <th className="px-2 py-3 text-center border-r border-slate-200 print:border-slate-300 whitespace-normal min-w-[60px] bg-force-white text-force-black">JUMLAH<br/>PATUH</th>
+                <th className="px-2 py-3 text-center border-r border-slate-200 print:border-slate-300 whitespace-normal min-w-[70px] bg-force-white text-force-black">PELUANG<br/>HAND HYGIENE</th>
+                <th className="px-3 py-3 text-center whitespace-nowrap bg-force-white text-force-black">Persentase</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/5">
-              {records.map((row, idx) => (
-                <tr key={row.id} className="hover:bg-white/[0.02] transition-colors group">
-                  <td className="px-6 py-4 text-xs font-medium text-slate-500">{idx + 1}</td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-col">
-                      <span className="text-xs font-bold text-slate-200">{new Date(row.start_time).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-                      <span className="text-[10px] text-slate-500">{new Date(row.start_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>
-                    </div>
+            <tbody className="divide-y divide-slate-200 text-[9px] text-force-black bg-force-white relative z-10">
+              {filteredData.length === 0 && (
+                <tr>
+                  <td colSpan={13} className="text-center py-10 font-bold uppercase tracking-widest text-force-black">
+                    Tidak ada data ditemukan
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-blue-500/10 flex items-center justify-center">
-                        <User className="w-3 h-3 text-blue-400" />
-                      </div>
-                      <span className="text-xs font-bold text-slate-200">{row.observer || '-'}</span>
-                    </div>
+                </tr>
+              )}
+              {filteredData.map((row) => (
+                <tr key={row.id} className="hover:bg-slate-50 transition-colors text-force-black bg-force-white">
+                  <td className="px-3 py-2 text-center border-r border-slate-200 print:border-slate-300 whitespace-nowrap text-force-black">{row.start_time ? format(parseISO(row.start_time), 'dd/MM/yyyy HH:mm') : '-'}</td>
+                  <td className="px-3 py-2 text-center border-r border-slate-200 print:border-slate-300 whitespace-nowrap text-force-black">{row.end_time ? format(parseISO(row.end_time), 'dd/MM/yyyy HH:mm') : '-'}</td>
+                  <td className="px-3 py-2 text-center border-r border-slate-200 print:border-slate-300 whitespace-nowrap text-force-black">{row.observer || '-'}</td>
+                  <td className="px-3 py-2 text-center border-r border-slate-200 print:border-slate-300 text-force-black whitespace-nowrap">{row.unit || '-'}</td>
+                  <td className="px-3 py-2 text-center border-r border-slate-200 print:border-slate-300 whitespace-nowrap text-force-black">{row.profesi || '-'}</td>
+                  
+                  {/* Moments */}
+                  <td className="px-2 py-2 text-center border-r border-slate-200 print:border-slate-300 whitespace-nowrap">
+                    <span className="print:hidden">{mapMomentAction(row.m1)}</span>
+                    <span className="hidden print:inline text-[9px] text-force-black">{mapMomentText(row.m1)}</span>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="w-3 h-3 text-slate-500" />
-                      <span className="text-xs font-bold text-slate-200">{row.unit || '-'}</span>
-                    </div>
+                  <td className="px-2 py-2 text-center border-r border-slate-200 print:border-slate-300 whitespace-nowrap">
+                    <span className="print:hidden">{mapMomentAction(row.m2)}</span>
+                    <span className="hidden print:inline text-[9px] text-force-black">{mapMomentText(row.m2)}</span>
                   </td>
-                  <td className="px-6 py-4 text-xs font-bold text-slate-200">{row.profesi || '-'}</td>
-                  <td className="px-4 py-4 text-center">{getMomenBadge(row.m1)}</td>
-                  <td className="px-4 py-4 text-center">{getMomenBadge(row.m2)}</td>
-                  <td className="px-4 py-4 text-center">{getMomenBadge(row.m3)}</td>
-                  <td className="px-4 py-4 text-center">{getMomenBadge(row.m4)}</td>
-                  <td className="px-4 py-4 text-center">{getMomenBadge(row.m5)}</td>
-                  <td className="px-6 py-4 text-right text-xs font-bold text-emerald-400 tabular-nums">{row.patuh || 0}</td>
-                  <td className="px-6 py-4 text-right text-xs font-bold text-slate-400 tabular-nums">{row.peluang || 0}</td>
-                  <td className="px-6 py-4 text-right">
-                    <span className={`text-xs font-black font-heading tabular-nums ${
-                      (row.persentase || 0) >= 85 ? 'text-blue-400' : (row.persentase || 0) >= 70 ? 'text-amber-400' : 'text-rose-400'
+                  <td className="px-2 py-2 text-center border-r border-slate-200 print:border-slate-300 whitespace-nowrap">
+                    <span className="print:hidden">{mapMomentAction(row.m3)}</span>
+                    <span className="hidden print:inline text-[9px] text-force-black">{mapMomentText(row.m3)}</span>
+                  </td>
+                  <td className="px-2 py-2 text-center border-r border-slate-200 print:border-slate-300 whitespace-nowrap">
+                    <span className="print:hidden">{mapMomentAction(row.m4)}</span>
+                    <span className="hidden print:inline text-[9px] text-force-black">{mapMomentText(row.m4)}</span>
+                  </td>
+                  <td className="px-2 py-2 text-center border-r border-slate-200 print:border-slate-300 whitespace-nowrap">
+                    <span className="print:hidden">{mapMomentAction(row.m5)}</span>
+                    <span className="hidden print:inline text-[9px] text-force-black">{mapMomentText(row.m5)}</span>
+                  </td>
+                  
+                  <td className="px-2 py-2 text-center border-r border-slate-200 print:border-slate-300 font-mono font-black">{row.patuh || 0}</td>
+                  <td className="px-2 py-2 text-center border-r border-slate-200 print:border-slate-300 font-mono font-black">{row.peluang || 0}</td>
+                  <td className="px-3 py-2 text-center font-bold whitespace-nowrap">
+                    <span className={`px-2 py-1 rounded-md text-[9px] ${
+                      (row.persentase || 0) >= 85 ? 'bg-emerald-100 text-emerald-800' :
+                      (row.persentase || 0) >= 70 ? 'bg-amber-100 text-amber-800' :
+                      'bg-rose-100 text-rose-800'
                     }`}>
                       {row.persentase || 0}%
                     </span>
                   </td>
                 </tr>
               ))}
-              {records.length === 0 && (
-                <tr>
-                  <td colSpan={13} className="px-6 py-20 text-center">
-                    <div className="flex flex-col items-center justify-center space-y-3 opacity-20">
-                      <Calendar className="w-10 h-10 text-slate-500" />
-                      <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Tidak ada data untuk periode ini</p>
-                    </div>
-                  </td>
-                </tr>
-              )}
             </tbody>
           </table>
         </div>
+        
+        {/* Keterangan Momen - Print only or small footer */}
+        <div className="p-4 bg-slate-50 flex flex-wrap gap-x-8 gap-y-2 text-[9px] text-force-black font-bold font-black">
+          <p><strong>M1:</strong> Sebelum kontak pasien</p>
+          <p><strong>M2:</strong> Sebelum tindakan aseptik</p>
+          <p><strong>M3:</strong> Setelah terkena cairan tubuh</p>
+          <p><strong>M4:</strong> Setelah kontak pasien</p>
+          <p><strong>M5:</strong> Setelah kontak lingkungan pasien</p>
+        </div>
       </div>
+
+      {/* REKAP PER MOMENT */}
+      <h3 className="text-xl font-heading font-black text-slate-800 dark:text-white pt-4 px-2 print:hidden">Rekapitulasi 5 Momen</h3>
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4 print:hidden">
+        {Object.entries(momentStats).map(([moment, perc], idx) => (
+          <div key={moment} className="bg-white dark:bg-[#0f172a] p-5 rounded-2xl border border-slate-200 dark:border-white/5 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+            <div className={`absolute top-0 left-0 w-1 h-full ${perc >= 85 ? 'bg-emerald-500' : perc >= 70 ? 'bg-amber-500' : 'bg-rose-500'}`} />
+            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-2">Moment {idx + 1}</h4>
+            <div className="flex items-baseline gap-1 mb-3">
+              <p className="text-4xl font-black text-slate-800 dark:text-white font-mono tracking-tighter">{perc}</p>
+              <span className="text-lg font-bold text-slate-400">%</span>
+            </div>
+            
+            <div className="h-2 w-full bg-slate-100 dark:bg-white/5 rounded-full overflow-hidden">
+               <div 
+                 className={`h-full transition-all duration-1000 ${perc >= 85 ? 'bg-emerald-500' : perc >= 70 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                 style={{ width: `${perc}%` }}
+               />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* GRAFIK CAPAIAN REALTIME */}
+      <div className="bg-white dark:bg-[#0f172a] p-6 sm:p-8 rounded-[2rem] border border-slate-200 dark:border-white/5 shadow-sm print:hidden">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+          <div>
+            <h3 className="text-lg font-black text-slate-800 dark:text-white flex items-center gap-2">
+              <BarChart2 className="w-5 h-5 text-emerald-500" /> Capaian Kepatuhan Hand Hygiene
+            </h3>
+            <p className="text-xs text-slate-500 mt-1">Membandingkan capaian periode <span className="font-bold text-slate-700 dark:text-slate-300">{periodFilter}</span> dengan Standar PPI 85%</p>
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-3 bg-slate-100 dark:bg-white/5 rounded-xl p-1 border border-slate-200 dark:border-white/10 shadow-inner">
+            <div className="relative">
+              <button 
+                onClick={() => setProfessionsOpen(!professionsOpen)}
+                className="flex items-center gap-2 px-3 py-2 cursor-pointer min-w-[140px] hover:bg-white dark:hover:bg-white/5 rounded-lg transition-colors border border-transparent active:border-emerald-500/30"
+              >
+                <User className="w-3.5 h-3.5 text-emerald-500" />
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-700 dark:text-slate-300">
+                  {selectedProfessions.length === 0 ? 'Semua Profesi' : 
+                   selectedProfessions.length === 1 ? selectedProfessions[0] : 
+                   `${selectedProfessions.length} Profesi`}
+                </span>
+                <ChevronDown className={`w-3 h-3 text-slate-400 ml-auto transition-transform duration-300 ${professionsOpen ? 'rotate-180' : ''}`} />
+              </button>
+              
+              <AnimatePresence>
+                {professionsOpen && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute top-full left-0 mt-2 w-56 bg-white dark:bg-slate-800 border border-slate-200 dark:border-white/10 rounded-xl shadow-xl z-50 p-2 overflow-hidden"
+                  >
+                    <div className="max-h-56 overflow-y-auto space-y-1 custom-scrollbar pr-1">
+                      <button 
+                        onClick={() => {
+                          setSelectedProfessions([]);
+                          setProfessionsOpen(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded-lg text-[10px] font-bold uppercase transition-colors ${selectedProfessions.length === 0 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5'}`}
+                      >
+                        Semua Profesi
+                      </button>
+                      <div className="h-px bg-slate-100 dark:bg-white/5 my-1" />
+                      {allProfessions.map(prof => (
+                        <button 
+                          key={prof}
+                          onClick={() => {
+                            setSelectedProfessions(prev => 
+                              prev.includes(prof) ? prev.filter(p => p !== prof) : [...prev, prof]
+                            );
+                          }}
+                          className={`w-full text-left px-3 py-2 rounded-lg text-[10px] font-bold uppercase transition-colors flex items-center justify-between ${selectedProfessions.includes(prof) ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-white/5'}`}
+                        >
+                          {prof}
+                          {selectedProfessions.includes(prof) && <CheckCircle2 className="w-3 h-3" />}
+                        </button>
+                      ))}
+                    </div>
+                    {selectedProfessions.length > 0 && (
+                      <div className="p-2 pt-1 border-t border-slate-100 dark:border-white/5 mt-1">
+                        <button 
+                          onClick={() => setProfessionsOpen(false)}
+                          className="w-full py-1.5 bg-emerald-600 text-white rounded-lg text-[9px] font-black uppercase tracking-tighter hover:bg-emerald-700 transition-colors"
+                        >
+                          Terapkan ({selectedProfessions.length})
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            <div className="w-px h-6 bg-slate-300 dark:bg-white/10 mx-1" />
+
+            <select 
+              value={periodFilter}
+              onChange={(e: any) => setPeriodFilter(e.target.value)}
+              className="px-3 py-2 bg-transparent text-[10px] font-bold uppercase tracking-widest text-slate-700 dark:text-slate-300 outline-none cursor-pointer"
+            >
+              <option value="harian" className="text-slate-900">Harian</option>
+              <option value="mingguan" className="text-slate-900">Mingguan</option>
+              <option value="bulanan" className="text-slate-900">Bulanan</option>
+              <option value="triwulan" className="text-slate-900">Triwulan</option>
+              <option value="semester" className="text-slate-900">Semester</option>
+              <option value="tahunan" className="text-slate-900">Tahunan</option>
+            </select>
+            <div className="w-px h-6 bg-slate-300 dark:bg-white/10 mx-1" />
+            <div className="flex gap-1">
+              <button onClick={() => setChartType('line')} className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${chartType === 'line' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-200 dark:hover:bg-white/10'}`}>Line</button>
+              <button onClick={() => setChartType('bar')} className={`px-4 py-2 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all ${chartType === 'bar' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-200 dark:hover:bg-white/10'}`}>Bar</button>
+            </div>
+          </div>
+        </div>
+
+        <div className="h-[350px] w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            {chartType === 'line' ? (
+              <AreaChart data={trendData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                <defs>
+                   <linearGradient id="colorValH" x1="0" y1="0" x2="0" y2="1">
+                     <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                     <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                   </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} dy={10} />
+                <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} dx={-10} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }}
+                  itemStyle={{ color: '#10b981', fontWeight: 'bold' }}
+                />
+                <ReferenceLine y={85} label={{ position: 'top', value: 'Standar PPI (85%)', fill: '#ef4444', fontSize: 10, fontWeight: 'black', textAnchor: 'middle' }} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={2} />
+                <Area type="monotone" dataKey="val" name="Capaian (%)" stroke="#10b981" strokeWidth={4} fill="url(#colorValH)" activeDot={{ r: 6, strokeWidth: 0, fill: '#10b981' }} />
+              </AreaChart>
+            ) : (
+              <BarChart data={trendData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--chart-grid)" />
+                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} dy={10} />
+                <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 10, fontWeight: 'bold' }} dx={-10} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff' }}
+                  itemStyle={{ color: '#10b981', fontWeight: 'bold' }}
+                  cursor={{ fill: 'rgba(16, 185, 129, 0.05)' }}
+                />
+                <ReferenceLine y={85} label={{ position: 'top', value: 'Standar PPI (85%)', fill: '#ef4444', fontSize: 10, fontWeight: 'black', textAnchor: 'middle' }} stroke="#ef4444" strokeDasharray="4 4" strokeWidth={2} />
+                <Bar dataKey="val" name="Capaian (%)" fill="#10b981" radius={[6, 6, 0, 0]} maxBarSize={60} />
+              </BarChart>
+            )}
+          </ResponsiveContainer>
+        </div>
+      </div>
+
     </div>
   );
 }
-

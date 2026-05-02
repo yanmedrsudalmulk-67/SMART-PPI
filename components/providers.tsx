@@ -29,9 +29,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const { data: publicAppLogo } = supabase.storage.from('logos').getPublicUrl('public/app_logo.png');
         const { data: publicHospitalLogo } = supabase.storage.from('logos').getPublicUrl('public/hospital_logo.png');
         
-        // Menambahkan parameter t= waktu agar browser tidak menggunakan cache gambar lama
-        if (publicAppLogo?.publicUrl) setAppLogoUrl(`${publicAppLogo.publicUrl}?t=${Date.now()}`);
-        if (publicHospitalLogo?.publicUrl) setHospitalLogoUrl(`${publicHospitalLogo.publicUrl}?t=${Date.now()}`);
+        // Gunakan URL langsung agar browser dapat mencache gambar dengan baik
+        if (publicAppLogo?.publicUrl) setAppLogoUrl(publicAppLogo.publicUrl);
+        if (publicHospitalLogo?.publicUrl) setHospitalLogoUrl(publicHospitalLogo.publicUrl);
       } catch (err) {
         console.error("Gagal memuat logo:", err);
       }

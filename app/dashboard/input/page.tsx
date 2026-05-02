@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { 
+import { LiveStatisticsCard } from '@/components/LiveStatisticsCard';
+import { RefreshCw,
   ShieldAlert, 
   Activity, 
   ClipboardCheck, 

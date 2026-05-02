@@ -1,8 +1,10 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { LiveStatisticsCard } from '@/components/LiveStatisticsCard';
 import { useRouter } from 'next/navigation';
 import { 
+  Activity,
   ArrowLeft, 
   Save, 
   CheckCircle2,
@@ -114,35 +116,50 @@ export default function FasilitasAPDMonitoringPage() {
     try {
       const supabase = getSupabase();
       if (editObserverId) {
-        const { error } = await supabase.from('master_observers').update({ nama: newObserverName }).eq('id', editObserverId);
-        if (error) throw error;
-        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o));
+        if (!editObserverId.startsWith('local-')) {
+          await supabase.from('master_observers').update({ nama: newObserverName }).eq('id', editObserverId);
+        }
+        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o).sort((a,b) => a.nama.localeCompare(b.nama)));
       } else {
         const { data, error } = await supabase.from('master_observers').insert([{ nama: newObserverName }]).select();
-        if (error) throw error;
-        if (data && data.length > 0) {
+        if (!error && data && data.length > 0) {
           setObservers(prev => [...prev, data[0]].sort((a,b) => a.nama.localeCompare(b.nama)));
+        } else {
+          setObservers(prev => [...prev, { id: 'local-' + Date.now().toString(), nama: newObserverName }].sort((a,b) => a.nama.localeCompare(b.nama)));
         }
       }
       setNewObserverName('');
       setEditObserverId(null);
     } catch (err) {
-      console.error(err);
-      alert('Gagal menyimpan supervisor.');
+      console.error('Save observer non-fatal fallback:', err);
+      // Fallback local update
+      if (editObserverId) {
+        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o).sort((a,b) => a.nama.localeCompare(b.nama)));
+      } else {
+        setObservers(prev => [...prev, { id: 'local-' + Date.now().toString(), nama: newObserverName }].sort((a,b) => a.nama.localeCompare(b.nama)));
+      }
+      setNewObserverName('');
+      setEditObserverId(null);
     }
   };
 
   const deleteObserver = async (id: string) => {
-    if (!confirm('Hapus supervisor ini?')) return;
+    if (!confirm('Hapus observer ini?')) return;
     try {
       const supabase = getSupabase();
-      const { error } = await supabase.from('master_observers').delete().eq('id', id);
-      if (error) throw error;
+      if (!id.startsWith('local-')) {
+        await supabase.from('master_observers').delete().eq('id', id);
+      }
       setObservers(prev => prev.filter(o => o.id !== id));
-      if (observer === id) setObserver('');
+      if (observer === (observers.find(o => o.id === id)?.nama)) {
+        setObserver('');
+      }
     } catch (err) {
-      console.error(err);
-      alert('Gagal menghapus supervisor.');
+      console.error('Delete observer fallback:', err);
+      setObservers(prev => prev.filter(o => o.id !== id));
+      if (observer === (observers.find(o => o.id === id)?.nama)) {
+        setObserver('');
+      }
     }
   };
 
@@ -387,73 +404,16 @@ export default function FasilitasAPDMonitoringPage() {
           </div>
         </div>
 
-        {/* PROGRESS CIRCLE & STATS */}
-        <div className="z-10 mt-4">
-          <motion.div 
-            layout
-            className="glass-card p-6 sm:p-8 rounded-[2rem] border-white/5 shadow-xl flex flex-col md:flex-row items-center gap-8 relative overflow-hidden"
-          >
-            <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-3xl -mr-16 -mt-16" />
-            <div className="relative w-40 h-40 flex items-center justify-center shrink-0 z-10">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 80 80">
-                <circle cx="40" cy="40" r="36" fill="transparent" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
-                <motion.circle 
-                  cx="40" cy="40" r="36" fill="transparent" stroke={stats.strokeColor} strokeWidth="8" 
-                  strokeDasharray={2 * Math.PI * 36}
-                  strokeDashoffset={2 * Math.PI * 36 - (stats.persentase / 100) * (2 * Math.PI * 36)}
-                  strokeLinecap="round" className="drop-shadow-[0_0_10px_rgba(59,130,246,0.5)]"
-                  initial={{ strokeDashoffset: 2 * Math.PI * 36 }}
-                  animate={{ strokeDashoffset: 2 * Math.PI * 36 - (stats.persentase / 100) * (2 * Math.PI * 36) }}
-                  transition={{ duration: 1 }}
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-heading font-bold text-white">{stats.persentase}%</span>
-              </div>
-            </div>
+        {/* HASIL PERSENTASE STANDARDIZED */}
+        <LiveStatisticsCard 
+          totalDinilai={stats.dinilai}
+          totalPatuh={stats.patuh}
+          totalTidakPatuh={stats.dinilai - stats.patuh}
+          persentase={stats.persentase}
+          statusText={stats.status}
+          title="HASIL PERSENTASE"
+        />
 
-            <div className="flex-1 grid grid-cols-2 gap-4 w-full relative z-10">
-              <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Jml Penilaian</p>
-                <p className="text-2xl font-bold text-white font-mono">{stats.dinilai}</p>
-              </div>
-              <div className="bg-white/5 p-4 rounded-2xl border border-white/5">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Jml Patuh</p>
-                <p className="text-2xl font-bold text-white font-mono">{stats.patuh}</p>
-              </div>
-              <div className="col-span-2 bg-white/5 p-4 rounded-2xl border border-white/5">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-1">Status Audit</p>
-                <p className={`text-xl font-black uppercase tracking-tight ${stats.color}`}>{stats.status}</p>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-
-        {/* TEMUAN & REKOMENDASI */}
-        <div className="grid md:grid-cols-2 gap-6">
-          <div className="glass-card p-6 sm:p-8 rounded-[2rem] border-white/5 space-y-4">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
-              <FileText className="w-3.5 h-3.5 text-blue-400" /> Temuan Monitoring
-            </label>
-            <textarea 
-              value={temuan}
-              onChange={(e) => setTemuan(e.target.value)}
-              placeholder="Tuliskan temuan fasilitas APD..."
-              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-4 text-sm text-white outline-none focus:border-blue-500/50 transition-all min-h-[140px] resize-none shadow-inner opacity-80"
-            />
-          </div>
-          <div className="glass-card p-6 sm:p-8 rounded-[2rem] border-white/5 space-y-4">
-            <label className="text-[10px] font-bold uppercase tracking-widest text-slate-500 flex items-center gap-2">
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-400" /> Rekomendasi PPI
-            </label>
-            <textarea 
-              value={rekomendasi}
-              onChange={(e) => setRekomendasi(e.target.value)}
-              placeholder="Tuliskan rekomendasi tindak lanjut..."
-              className="w-full bg-white/5 border border-white/5 rounded-2xl px-5 py-4 text-sm text-white outline-none focus:border-blue-500/50 transition-all min-h-[140px] resize-none shadow-inner opacity-80"
-            />
-          </div>
-        </div>
 
         {/* DOKUMENTASI */}
         <div className="glass-card p-6 sm:p-8 rounded-[2.5rem] border-white/5 space-y-6 flex flex-col items-center">
@@ -510,24 +470,29 @@ export default function FasilitasAPDMonitoringPage() {
         {/* SUBMIT BUTTON */}
         <div className="pt-6 pb-20">
           <motion.button
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.98 }}
             type="submit"
             disabled={isSubmitting}
-            className="w-full py-6 rounded-[2.5rem] bg-gradient-to-r from-blue-600 to-blue-800 text-white font-heading font-black text-sm uppercase tracking-[0.4em] shadow-2xl shadow-blue-500/30 flex items-center justify-center gap-5 group disabled:opacity-50 border border-white/10 glow-blue relative overflow-hidden"
+            animate={{
+              boxShadow: [
+                "0 0 0 0 rgba(37, 99, 235, 0)",
+                "0 0 0 15px rgba(37, 99, 235, 0.3)",
+                "0 0 0 0 rgba(37, 99, 235, 0)"
+              ]
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="w-full flex justify-center items-center gap-4 py-5 bg-blue-600 hover:bg-blue-500 shadow-[0_0_20px_rgba(37,99,235,0.4)] text-white text-base font-bold uppercase tracking-[0.2em] rounded-2xl transition-all border border-blue-400/30 group disabled:opacity-50 overflow-hidden relative"
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-[shimmer_2s_infinite]" />
+            <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-1000 ease-in-out" />
             {isSubmitting ? (
-              <>
-                <RefreshCw className="w-6 h-6 animate-spin" />
-                Sistem Memproses Data...
-              </>
+              <RefreshCw className="w-5 h-5 animate-spin" />
             ) : (
               <>
-                <div className="p-2 bg-white/10 rounded-xl group-hover:scale-110 transition-transform">
-                    <Save className="w-6 h-6" />
-                </div>
-                Simpan Data Monitoring
+                <Save className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                <span>Simpan Data</span>
               </>
             )}
           </motion.button>

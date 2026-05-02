@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { LiveStatisticsCard } from '@/components/LiveStatisticsCard';
 import { useRouter } from 'next/navigation';
 import { uploadImagesToSupabase } from '@/lib/upload';
 import { DocumentationUploader, DocImage } from '@/components/DocumentationUploader';
@@ -18,23 +19,20 @@ import {
   FileEdit,
   Camera,
   Upload,
-  Signature
+  Signature,
+  RefreshCw,
+  X,
+  Plus,
+  Trash2,
+  Edit2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Link from 'next/link';
 import SignatureCanvas from 'react-signature-canvas';
+import { useAppContext } from '@/components/providers';
+import { getSupabase } from '@/lib/supabase';
 
-const observers = [
-  'IPCN_Adi Tresa Purnama',
-  'IPCLN_Syefira Salsabila',
-  'IPCLN_Siti Hapsoh Roditubillah',
-  'IPCLN_Ria Meliani',
-  'IPCLN_Ema Mahmudah',
-  'IPCLN_Putri Audia',
-  'IPCLN_Seli Marselina',
-  'IPCLN_Rahmat Hidayat',
-  'IPCLN_Rickha Ilnia'
-];
+type Observer = { id: string; nama: string };
 
 const units = [
   'IGD', 'ICU', 'IBS', 'Ranap Aisyah', 'Ranap Fatimah', 
@@ -56,11 +54,20 @@ type AuditStatus = 'ya' | 'tidak' | 'na' | null;
 
 export default function DekontaminasiAlatPage() {
   const router = useRouter();
+  const { userRole } = useAppContext();
+  const isIPCN = userRole === 'IPCN' || userRole === 'Admin';
   
   const [startTime, setStartTime] = useState<Date | null>(null);
   
   const [observer, setObserver] = useState('');
   const [unit, setUnit] = useState('');
+  
+  // Observer Management
+  const [observers, setObservers] = useState<Observer[]>([]);
+  const [isObserverModalOpen, setIsObserverModalOpen] = useState(false);
+  const [newObserverName, setNewObserverName] = useState('');
+  const [editObserverId, setEditObserverId] = useState<string | null>(null);
+
   const [temuan, setTemuan] = useState('');
   const [rekomendasi, setRekomendasi] = useState('');
   const [dokumentasiUrl, setDokumentasiUrl] = useState('');
@@ -90,7 +97,81 @@ export default function DekontaminasiAlatPage() {
     requestAnimationFrame(() => {
       setStartTime(new Date());
     });
+    fetchObservers();
   }, []);
+
+  const fetchObservers = async () => {
+    try {
+      const supabase = getSupabase();
+      const { data, error } = await supabase.from('master_observers').select('*').order('nama');
+      if (error) throw error;
+      
+      const hasAdi = data?.some(s => s.nama === 'IPCN_Adi Tresa Purnama');
+      let finalData = data || [];
+      if (!hasAdi) {
+        finalData = [{ nama: 'IPCN_Adi Tresa Purnama' }, ...finalData];
+      }
+      setObservers(finalData);
+      if (finalData.length > 0 && !observer) {
+        setObserver(finalData[0].nama);
+      }
+    } catch (err) {
+      setObservers([{ id: '1', nama: 'IPCN_Adi Tresa Purnama' }]);
+      setObserver('IPCN_Adi Tresa Purnama');
+    }
+  };
+
+  const saveObserver = async () => {
+    if (!newObserverName.trim()) return;
+    try {
+      const supabase = getSupabase();
+      if (editObserverId) {
+        if (!editObserverId.startsWith('local-')) {
+          await supabase.from('master_observers').update({ nama: newObserverName }).eq('id', editObserverId);
+        }
+        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o).sort((a,b) => a.nama.localeCompare(b.nama)));
+      } else {
+        const { data, error } = await supabase.from('master_observers').insert([{ nama: newObserverName }]).select();
+        if (!error && data && data.length > 0) {
+          setObservers(prev => [...prev, data[0]].sort((a,b) => a.nama.localeCompare(b.nama)));
+        } else {
+          setObservers(prev => [...prev, { id: 'local-' + Date.now().toString(), nama: newObserverName }].sort((a,b) => a.nama.localeCompare(b.nama)));
+        }
+      }
+      setNewObserverName('');
+      setEditObserverId(null);
+    } catch (err) {
+      console.error('Save observer non-fatal fallback:', err);
+      // Fallback local update
+      if (editObserverId) {
+        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o).sort((a,b) => a.nama.localeCompare(b.nama)));
+      } else {
+        setObservers(prev => [...prev, { id: 'local-' + Date.now().toString(), nama: newObserverName }].sort((a,b) => a.nama.localeCompare(b.nama)));
+      }
+      setNewObserverName('');
+      setEditObserverId(null);
+    }
+  };
+
+  const deleteObserver = async (id: string) => {
+    if (!confirm('Hapus observer ini?')) return;
+    try {
+      const supabase = getSupabase();
+      if (!id.startsWith('local-')) {
+        await supabase.from('master_observers').delete().eq('id', id);
+      }
+      setObservers(prev => prev.filter(o => o.id !== id));
+      if (observer === (observers.find(o => o.id === id)?.nama)) {
+        setObserver('');
+      }
+    } catch (err) {
+      console.error('Delete observer fallback:', err);
+      setObservers(prev => prev.filter(o => o.id !== id));
+      if (observer === (observers.find(o => o.id === id)?.nama)) {
+        setObserver('');
+      }
+    }
+  };
 
   const formatDate = (date: Date | null) => {
     if (!date) return '-';
@@ -98,6 +179,13 @@ export default function DekontaminasiAlatPage() {
       day: '2-digit', month: '2-digit', year: 'numeric',
       hour: '2-digit', minute: '2-digit', hour12: false
     }).format(date);
+  };
+
+  // Convert Date to local datetime-local string
+  const getLocalIsoString = (val: Date | null) => {
+      if (!val) return '';
+      const tzoffset = val.getTimezoneOffset() * 60000;
+      return new Date(val.getTime() - tzoffset).toISOString().slice(0, 16);
   };
 
   const handleActionClick = (id: string, stat: AuditStatus) => {
@@ -181,8 +269,8 @@ export default function DekontaminasiAlatPage() {
       const supabase = getSupabase();
 
       // Get signatures if they exist
-      const ttdPj = sigPadPj.current && !sigPadPj.current.isEmpty() ? sigPadPj.current.getTrimmedCanvas().toDataURL('image/png') : null;
-      const ttdIpcn = sigPadIpcn.current && !sigPadIpcn.current.isEmpty() ? sigPadIpcn.current.getTrimmedCanvas().toDataURL('image/png') : null;
+      const ttdPj = sigPadPj.current && !sigPadPj.current.isEmpty() ? sigPadPj.current.getCanvas().toDataURL('image/png') : null;
+      const ttdIpcn = sigPadIpcn.current && !sigPadIpcn.current.isEmpty() ? sigPadIpcn.current.getCanvas().toDataURL('image/png') : null;
 
       const uploadedUrls = await uploadImagesToSupabase(supabase, images, 'dokumentasi', 'audit');
       const payload = {
@@ -262,18 +350,21 @@ export default function DekontaminasiAlatPage() {
 
       <div className="space-y-6">
         {/* SECTION 1: Waktu Observasi */}
-        <div className="glass-card p-6 rounded-[24px] border-white/5">
+        <div className="glass-card p-6 rounded-[24px] border-white/5 relative overflow-hidden group">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/5 rounded-full blur-[50px] -z-10 group-hover:bg-blue-500/10 transition-colors" />
           <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-slate-400 mb-6">
             <Clock className="w-4 h-4 text-blue-400" /> Waktu Observasi
           </h2>
-          <div className="bg-white/5 p-4 rounded-2xl border border-white/5 inline-block cursor-pointer">
-            <p className="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Waktu Input (Dapat diubah)</p>
-            <input 
-               type="datetime-local" 
-               defaultValue={startTime ? new Date(startTime.getTime() - (startTime.getTimezoneOffset() * 60000)).toISOString().slice(0, 16) : ''}
-               onChange={(e) => setStartTime(new Date(e.target.value))}
-               className="bg-transparent text-sm font-bold text-white outline-none"
-            />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">Tanggal & Waktu</label>
+              <input 
+                type="datetime-local" 
+                value={getLocalIsoString(startTime)}
+                onChange={(e) => setStartTime(new Date(e.target.value))}
+                className="w-full bg-navy-dark/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all appearance-none"
+              />
+            </div>
           </div>
         </div>
 
@@ -286,9 +377,16 @@ export default function DekontaminasiAlatPage() {
             <div>
               <div className="flex justify-between items-end mb-2">
                 <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Observer</label>
-                <button type="button" className="text-blue-400 hover:text-white transition-colors" title="Kelola Observer">
-                  <Settings className="w-3.5 h-3.5" />
-                </button>
+                {isIPCN && (
+                  <button 
+                    type="button" 
+                    onClick={() => setIsObserverModalOpen(true)}
+                    className="text-blue-400 hover:text-white transition-colors" 
+                    title="Kelola Observer"
+                  >
+                    <Settings className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -297,10 +395,10 @@ export default function DekontaminasiAlatPage() {
                 <select 
                   value={observer}
                   onChange={(e) => setObserver(e.target.value)}
-                  className="w-full bg-white/5 border border-white/5 rounded-xl pl-10 pr-4 py-3 text-sm text-white outline-none focus:border-blue-500/50 appearance-none transition-all"
+                  className="w-full bg-white/5 border border-white/5 rounded-xl pl-10 pr-4 py-3 text-sm text-white outline-none focus:border-blue-500/50 appearance-none transition-all cursor-pointer"
                 >
                   <option value="" className="bg-navy-dark text-slate-400">Pilih Observer...</option>
-                  {observers.map(o => <option key={o} value={o} className="bg-navy-dark">{o}</option>)}
+                  {observers.map(o => <option key={o.id || o.nama} value={o.nama} className="bg-navy-dark">{o.nama}</option>)}
                 </select>
               </div>
             </div>
@@ -382,37 +480,15 @@ export default function DekontaminasiAlatPage() {
           ))}
         </div>
 
-        {/* SECTION 5: Statistik */}
-        <div className="glass-card p-6 sm:p-8 rounded-[32px] border-white/5 flex flex-col md:flex-row items-center justify-center gap-8 relative overflow-hidden">
-          <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 blur-[80px] rounded-full -z-10 ${stats.bg.replace('/10', '/10')}`} />
-          
-          <div className="relative w-48 h-48 flex items-center justify-center shrink-0">
-            <svg className="w-full h-full -rotate-90" viewBox="0 0 80 80">
-              <circle cx="40" cy="40" r="36" fill="transparent" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
-              <motion.circle 
-                cx="40" cy="40" r="36" fill="transparent" stroke="currentColor" strokeWidth="8" strokeDasharray={2 * Math.PI * 36} strokeLinecap="round" className={stats.color}
-                initial={{ strokeDashoffset: 2 * Math.PI * 36 }}
-                animate={{ strokeDashoffset: calculateDashOffset(stats.persentase) }}
-                transition={{ duration: 1, ease: 'easeOut' }}
-              />
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span className="text-4xl font-heading font-bold text-white">{stats.persentase}%</span>
-              <span className={`text-[10px] font-bold uppercase tracking-widest mt-1 ${stats.color}`}>{stats.status}</span>
-            </div>
-          </div>
-
-          <div className="w-full max-w-sm grid grid-cols-2 gap-4">
-            <div className="bg-white/5 rounded-2xl p-4 text-center border border-white/5">
-              <p className="text-3xl font-bold text-white mb-2">{stats.patuh}</p>
-              <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Kepatuhan</p>
-            </div>
-            <div className="bg-white/5 rounded-2xl p-4 text-center border border-white/5">
-              <p className="text-3xl font-bold text-white mb-2">{stats.dinilai}</p>
-              <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold">Item Dinilai</p>
-            </div>
-          </div>
-        </div>
+        {/* HASIL PERSENTASE STANDARDIZED */}
+        <LiveStatisticsCard 
+          totalDinilai={stats.dinilai}
+          totalPatuh={stats.patuh}
+          totalTidakPatuh={stats.dinilai - stats.patuh}
+          persentase={stats.persentase}
+          statusText={stats.status}
+          title="HASIL OBSERVASI DEKONTAMINASI"
+        />
 
         {/* SECTION 6: Temuan */}
         <div className="glass-card p-6 rounded-[24px] border-white/5">
@@ -494,28 +570,100 @@ export default function DekontaminasiAlatPage() {
           </div>
         </div>
 
-        {/* SAVE BUTTON (Bottom of the formulation flow) */}
+        {/* SAVE BUTTON */}
         <div className="pt-4 pb-8">
-          <button
+          <motion.button
             onClick={handleSubmit}
             disabled={isSubmitting || !observer || !unit || stats.dinilai === 0}
-            className="w-full px-8 py-5 rounded-2xl shadow-[0_0_20px_rgba(59,130,246,0.3)] text-sm font-bold uppercase tracking-[0.2em] text-white bg-blue-600 hover:bg-blue-500 focus:outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed group flex items-center justify-center gap-3 hover:scale-[1.01]"
+            className="w-full flex justify-center items-center gap-4 py-5 bg-blue-600 hover:bg-blue-500 text-white text-base font-bold uppercase tracking-[0.2em] rounded-2xl transition-all border border-blue-400/30 group disabled:opacity-50 overflow-hidden relative shadow-[0_0_20px_rgba(37,99,235,0.4)] glow-blue"
+            animate={{
+              boxShadow: [
+                "0 0 0 0 rgba(37, 99, 235, 0)",
+                "0 0 0 15px rgba(37, 99, 235, 0.3)",
+                "0 0 0 0 rgba(37, 99, 235, 0)"
+              ]
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
           >
+            <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-1000 ease-in-out" />
             {isSubmitting ? (
-              <div className="flex items-center gap-3">
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span className="tracking-[0.2em]">Menyimpan...</span>
-              </div>
+              <RefreshCw className="w-5 h-5 animate-spin" />
             ) : (
               <>
                 <Save className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                <span className="tracking-[0.2em]">Simpan Data</span>
+                <span>Simpan Data</span>
               </>
             )}
-          </button>
+          </motion.button>
         </div>
 
       </div>
+
+      {/* OBSERVER MODAL */}
+      <AnimatePresence>
+        {isObserverModalOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }}
+              onClick={() => setIsObserverModalOpen(false)}
+              className="absolute inset-0 bg-navy-dark/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-navy-light border border-white/10 rounded-[2.5rem] shadow-2xl p-8 overflow-hidden"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <User className="w-5 h-5 text-blue-400" /> Kelola Observer
+                </h3>
+                <button onClick={() => setIsObserverModalOpen(false)} className="p-2 hover:bg-white/5 rounded-xl text-slate-500"><X className="w-5 h-5" /></button>
+              </div>
+
+              <div className="flex gap-2 mb-6">
+                <input 
+                  type="text" 
+                  value={newObserverName}
+                  onChange={(e) => setNewObserverName(e.target.value)}
+                  placeholder="Nama Observer baru..."
+                  disabled={!isIPCN}
+                  className="flex-1 bg-navy-dark border border-white/10 rounded-xl px-4 py-2 text-sm text-white outline-none focus:border-blue-500/50 disabled:opacity-50"
+                  onKeyDown={(e) => e.key === 'Enter' && saveObserver()}
+                />
+                {isIPCN && (
+                  <button 
+                    onClick={saveObserver}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-blue-500"
+                  >
+                    {editObserverId ? 'Update' : 'Tambah'}
+                  </button>
+                )}
+              </div>
+
+              <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                {observers.map(o => (
+                  <div key={o.id || o.nama} className="flex items-center justify-between p-3 bg-navy-dark border border-white/5 rounded-xl group">
+                    <span className="text-sm font-medium text-slate-300">{o.nama}</span>
+                    {isIPCN && (
+                      <div className="flex gap-1">
+                        <button onClick={() => { setNewObserverName(o.nama); setEditObserverId(o.id); }} className="p-2 text-slate-500 hover:text-blue-400 transition-colors"><Edit2 className="w-4 h-4" /></button>
+                        <button onClick={() => deleteObserver(o.id)} className="p-2 text-slate-500 hover:text-red-400 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

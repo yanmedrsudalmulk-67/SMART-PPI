@@ -1,10 +1,9 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
+import { LiveStatisticsCard } from '@/components/LiveStatisticsCard';
 import { useRouter } from 'next/navigation';
-import { 
-  ArrowLeft, Plus, Trash2, Save, AlertCircle, Loader2, Info, CheckCircle2
-} from 'lucide-react';
+import { Activity, ArrowLeft, Plus, Trash2, Save, AlertCircle, Loader2, Info, CheckCircle2, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -145,12 +144,12 @@ export default function SurveilansFormPage() {
         {/* Main Info */}
         <div className="sleek-card grid grid-cols-1 md:grid-cols-3 gap-6 p-6 sm:p-8 rounded-[2rem] shadow-lg dark:border-white/5 relative overflow-hidden">
           <div className="relative z-10">
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-slate-500 mb-2">Waktu Surveilans</label>
+            <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500 mb-2">Waktu Surveilans</label>
             <input 
               type="datetime-local" 
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full px-4 py-3 bg-slate-50 dark:bg-white/5 border border-gray-200 dark:border-white/5 text-navy-dark dark:text-white rounded-xl text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500/50 outline-none transition-all shadow-inner"
+              className="w-full bg-navy-dark/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 transition-all appearance-none"
             />
           </div>
           <div className="relative z-10">
@@ -310,18 +309,33 @@ export default function SurveilansFormPage() {
 
         {/* Save Button */}
         <div className="pt-4">
-          <button
+          <motion.button
             type="submit"
             disabled={isSubmitting}
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold uppercase tracking-[0.15em] text-[13px] py-4 px-6 rounded-[12px] shadow-lg shadow-blue-500/30 border border-blue-500/50 transition-all hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] flex items-center justify-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed group"
+            animate={{
+              boxShadow: [
+                "0 0 0 0 rgba(37, 99, 235, 0)",
+                "0 0 0 15px rgba(37, 99, 235, 0.3)",
+                "0 0 0 0 rgba(37, 99, 235, 0)"
+              ]
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="w-full flex justify-center items-center gap-4 py-5 bg-blue-600 hover:bg-blue-500 text-white text-base font-bold uppercase tracking-[0.2em] rounded-2xl transition-all border border-blue-400/30 group disabled:opacity-50 overflow-hidden relative shadow-[0_0_20px_rgba(37,99,235,0.4)] glow-blue"
           >
+            <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-1000 ease-in-out" />
             {isSubmitting ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
+              <RefreshCw className="w-5 h-5 animate-spin" />
             ) : (
-              <Save className="w-5 h-5 group-hover:scale-110 transition-transform" />
+              <>
+                <Save className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                <span>Simpan Data</span>
+              </>
             )}
-            {isSubmitting ? 'Menyimpan...' : 'Simpan Data'}
-          </button>
+          </motion.button>
         </div>
       </form>
 

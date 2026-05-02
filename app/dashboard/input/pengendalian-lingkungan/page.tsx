@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { LiveStatisticsCard } from '@/components/LiveStatisticsCard';
 import { useRouter } from 'next/navigation';
 import { 
   ArrowLeft, Save, CheckCircle2, Clock, User, Building2, Activity,
-  Camera, Upload, Plus, Edit2, Trash2, X, Settings, AlertCircle, Signature
+  Camera, Upload, Plus, Edit2, Trash2, X, Settings, AlertCircle, Signature, RefreshCw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Link from 'next/link';
@@ -12,6 +13,8 @@ import SignatureCanvas from 'react-signature-canvas';
 import { getSupabase } from '@/lib/supabase';
 import { uploadImagesToSupabase } from '@/lib/upload';
 import { DocumentationUploader, DocImage } from '@/components/DocumentationUploader';
+
+import { useAppContext } from '@/components/providers';
 
 const initialUnits = [
   'IGD', 'ICU', 'IBS', 'Ranap Aisyah', 'Ranap Fatimah', 
@@ -45,6 +48,8 @@ interface Observer {
 
 export default function PengendalianLingkunganPage() {
   const router = useRouter();
+  const { userRole } = useAppContext();
+  const isIPCN = userRole === 'IPCN' || userRole === 'Admin';
   
   const [startTime, setStartTime] = useState<Date | null>(null);
   
@@ -85,20 +90,19 @@ export default function PengendalianLingkunganPage() {
       const supabase = getSupabase();
       const { data, error } = await supabase.from('master_observers').select('*').order('nama');
       if (error) throw error;
-      if (data) setObservers(data);
+      
+      const hasAdi = data?.some(s => s.nama === 'IPCN_Adi Tresa Purnama');
+      let finalData = data || [];
+      if (!hasAdi) {
+        finalData = [{ nama: 'IPCN_Adi Tresa Purnama' }, ...finalData];
+      }
+      setObservers(finalData);
+      if (finalData.length > 0 && !observer) {
+        setObserver(finalData[0].nama);
+      }
     } catch (err) {
-      // Fallback initial list if DB table not ready
-      setObservers([
-        { id: '1', nama: 'IPCN_Adi Tresa Purnama' },
-        { id: '2', nama: 'IPCLN_Syefira Salsabila' },
-        { id: '3', nama: 'IPCLN_Siti Hapsoh Roditubillah' },
-        { id: '4', nama: 'IPCLN_Ria Meliani' },
-        { id: '5', nama: 'IPCLN_Ema Mahmudah' },
-        { id: '6', nama: 'IPCLN_Putri Audia' },
-        { id: '7', nama: 'IPCLN_Seli Marselina' },
-        { id: '8', nama: 'IPCLN_Rahmat Hidayat' },
-        { id: '9', nama: 'IPCLN_Rickha Ilnia' }
-      ]);
+      setObservers([{ id: '1', nama: 'IPCN_Adi Tresa Purnama' }]);
+      setObserver('IPCN_Adi Tresa Purnama');
     }
   };
 
@@ -107,25 +111,30 @@ export default function PengendalianLingkunganPage() {
     try {
       const supabase = getSupabase();
       if (editObserverId) {
-        // Edit mode
-        const { error } = await supabase.from('master_observers').update({ nama: newObserverName }).eq('id', editObserverId);
-        if (error && error.code !== '42P01') throw error;
-        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o));
+        if (!editObserverId.startsWith('local-')) {
+          await supabase.from('master_observers').update({ nama: newObserverName }).eq('id', editObserverId);
+        }
+        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o).sort((a,b) => a.nama.localeCompare(b.nama)));
       } else {
-        // Add mode
         const { data, error } = await supabase.from('master_observers').insert([{ nama: newObserverName }]).select();
-        if (error && error.code !== '42P01') throw error;
-        if (data && data.length > 0) {
+        if (!error && data && data.length > 0) {
           setObservers(prev => [...prev, data[0]].sort((a,b) => a.nama.localeCompare(b.nama)));
         } else {
-          setObservers(prev => [...prev, { id: Date.now().toString(), nama: newObserverName }].sort((a,b) => a.nama.localeCompare(b.nama)));
+          setObservers(prev => [...prev, { id: 'local-' + Date.now().toString(), nama: newObserverName }].sort((a,b) => a.nama.localeCompare(b.nama)));
         }
       }
       setNewObserverName('');
       setEditObserverId(null);
     } catch (err) {
-      console.error(err);
-      alert('Gagal menyimpan observer ke database.');
+      console.error('Save observer non-fatal fallback:', err);
+      // Fallback local update
+      if (editObserverId) {
+        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o).sort((a,b) => a.nama.localeCompare(b.nama)));
+      } else {
+        setObservers(prev => [...prev, { id: 'local-' + Date.now().toString(), nama: newObserverName }].sort((a,b) => a.nama.localeCompare(b.nama)));
+      }
+      setNewObserverName('');
+      setEditObserverId(null);
     }
   };
 
@@ -133,13 +142,19 @@ export default function PengendalianLingkunganPage() {
     if (!confirm('Hapus observer ini?')) return;
     try {
       const supabase = getSupabase();
-      const { error } = await supabase.from('master_observers').delete().eq('id', id);
-      if (error && error.code !== '42P01') throw error;
+      if (!id.startsWith('local-')) {
+        await supabase.from('master_observers').delete().eq('id', id);
+      }
       setObservers(prev => prev.filter(o => o.id !== id));
-      if (observer === observers.find(o => o.id === id)?.nama) setObserver('');
+      if (observer === (observers.find(o => o.id === id)?.nama)) {
+        setObserver('');
+      }
     } catch (err) {
-      console.error(err);
-      alert('Gagal menghapus observer.');
+      console.error('Delete observer fallback:', err);
+      setObservers(prev => prev.filter(o => o.id !== id));
+      if (observer === (observers.find(o => o.id === id)?.nama)) {
+        setObserver('');
+      }
     }
   };
 
@@ -354,24 +369,24 @@ export default function PengendalianLingkunganPage() {
           
           <div className="space-y-3">
             {checklistItems.map((item) => (
-              <div key={item.key} className="bg-navy-dark/30 border border-white/5 p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-white/10 transition-colors">
+              <div key={item.key} className="bg-navy-dark/30 border border-white/5 p-4 rounded-2xl flex flex-col gap-3 hover:border-white/10 transition-colors">
                 <p className="text-sm font-medium text-slate-300 leading-relaxed md:max-w-[60%]">{item.label}</p>
-                <div className="flex bg-navy-dark/50 p-1 rounded-xl shrink-0 w-full md:w-auto">
+                <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full shrink-0">
                   <button 
                     onClick={() => handleActionClick(item.key, 'ya')}
-                    className={`flex-1 md:w-20 py-2 rounded-lg text-xs font-bold transition-all ${data[item.key] === 'ya' ? (item.isNegative ? 'bg-red-500 text-white shadow-lg' : 'bg-blue-600 text-white shadow-lg') : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                    className={`py-3 px-2 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all border ${data[item.key] === 'ya' ? (item.isNegative ? 'bg-red-600/20 text-red-400 border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2)]' : 'bg-blue-600/20 text-blue-400 border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.2)]') : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'}`}
                   >
                     Ya
                   </button>
                   <button 
                     onClick={() => handleActionClick(item.key, 'tidak')}
-                    className={`flex-1 md:w-20 py-2 rounded-lg text-xs font-bold transition-all ${data[item.key] === 'tidak' ? (item.isNegative ? 'bg-blue-600 text-white shadow-lg' : 'bg-red-500 text-white shadow-lg') : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                    className={`py-3 px-2 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all border ${data[item.key] === 'tidak' ? (item.isNegative ? 'bg-blue-600/20 text-blue-400 border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.2)]' : 'bg-red-600/20 text-red-400 border-red-500/50 shadow-[0_0_15px_rgba(239,68,68,0.2)]') : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'}`}
                   >
                     Tidak
                   </button>
                   <button 
                     onClick={() => handleActionClick(item.key, 'na')}
-                    className={`flex-1 md:w-20 py-2 rounded-lg text-xs font-bold transition-all ${data[item.key] === 'na' ? 'bg-slate-600 text-white shadow-lg' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}
+                    className={`py-3 px-2 rounded-xl text-[10px] sm:text-xs font-bold uppercase tracking-wider transition-all border ${data[item.key] === 'na' ? 'bg-slate-600/20 text-slate-300 border-slate-500/50' : 'bg-white/5 text-slate-400 border-transparent hover:bg-white/10'}`}
                   >
                     N/A
                   </button>
@@ -382,39 +397,14 @@ export default function PengendalianLingkunganPage() {
         </div>
 
         {/* SECTION 5: Statistik & Hasil */}
-        <div className="glass-card p-6 rounded-[24px] border-white/5 relative overflow-hidden">
-          <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-slate-400 mb-6">
-            <Activity className="w-4 h-4 text-blue-400" /> Hasil Audit
-          </h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-navy-dark/50 rounded-2xl p-4 border border-white/5 flex flex-col items-center justify-center text-center">
-              <span className="text-3xl font-heading font-bold text-white mb-1">{stats.dinilai}</span>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Item Dinilai</span>
-            </div>
-            <div className="bg-navy-dark/50 rounded-2xl p-4 border border-white/5 flex flex-col items-center justify-center text-center">
-              <span className="text-3xl font-heading font-bold text-white mb-1">{stats.patuh}</span>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Item Patuh</span>
-            </div>
-            <div className={`${stats.bg} rounded-2xl p-4 border ${stats.color.replace('text', 'border')}/20 flex flex-col items-center justify-center text-center transition-colors`}>
-              <span className={`text-3xl font-heading font-bold mb-1 ${stats.color}`}>{stats.status}</span>
-              <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Status Audit</span>
-            </div>
-            
-            <div className="bg-navy-dark/50 rounded-2xl p-4 border border-white/5 flex flex-col items-center justify-center relative">
-              <svg className="w-20 h-20 transform -rotate-90">
-                <circle cx="40" cy="40" r="36" fill="transparent" stroke="currentColor" strokeWidth="8" className="text-slate-800" />
-                <circle cx="40" cy="40" r="36" fill="transparent" stroke="currentColor" strokeWidth="8"
-                  strokeDasharray={2 * Math.PI * 36}
-                  strokeDashoffset={calculateDashOffset(stats.persentase)}
-                  className={`transition-all duration-1000 ease-out ${stats.color}`}
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-xl font-heading font-bold text-white">{stats.persentase}%</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        <LiveStatisticsCard 
+          totalDinilai={stats.dinilai}
+          totalPatuh={stats.patuh}
+          totalTidakPatuh={stats.dinilai - stats.patuh}
+          persentase={stats.persentase}
+          statusText={stats.status}
+          title="HASIL AUDIT"
+        />
 
         {/* SECTION 6 & 7: Temuan & Rekomendasi */}
         <div className="glass-card p-6 rounded-[24px] border-white/5">
@@ -500,25 +490,33 @@ export default function PengendalianLingkunganPage() {
 
         {/* SAVE BUTTON */}
         <div className="pt-4 pb-8">
-          <button
+          <motion.button
             onClick={handleSubmit}
             disabled={isSubmitting || !observer || !unit || stats.dinilai === 0}
-            className="w-full px-8 py-5 rounded-2xl shadow-[0_0_20px_rgba(59,130,246,0.4)] text-sm font-bold uppercase tracking-[0.2em] text-white bg-gradient-to-r from-blue-400 to-blue-600 hover:from-blue-500 hover:to-blue-700 transition-all hover:-translate-y-1 relative group overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed  flex items-center justify-center gap-3"
+            animate={{
+              boxShadow: [
+                "0 0 0 0 rgba(37, 99, 235, 0)",
+                "0 0 0 15px rgba(37, 99, 235, 0.3)",
+                "0 0 0 0 rgba(37, 99, 235, 0)"
+              ]
+            }}
+            transition={{
+              duration: 2,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="w-full flex justify-center items-center gap-4 py-5 bg-blue-600 hover:bg-blue-500 text-white text-base font-bold uppercase tracking-[0.2em] rounded-2xl transition-all border border-blue-400/30 group disabled:opacity-50 overflow-hidden relative shadow-[0_0_20px_rgba(37,99,235,0.4)] glow-blue"
           >
-            {/* Shimmer Effect */}
-            <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent group-hover:animate-[shimmer_1.5s_infinite]" />
+            <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-1000 ease-in-out" />
             {isSubmitting ? (
-              <div className="flex items-center gap-3">
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>Menyimpan...</span>
-              </div>
+              <RefreshCw className="w-5 h-5 animate-spin" />
             ) : (
-              <div className="flex items-center gap-3">
+              <>
                 <Save className="w-5 h-5 group-hover:scale-110 transition-transform" />
                 <span>Simpan Data</span>
-              </div>
+              </>
             )}
-          </button>
+          </motion.button>
         </div>
       </div>
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { LiveStatisticsCard } from '@/components/LiveStatisticsCard';
 import { useRouter } from 'next/navigation';
 import { 
   ArrowLeft, 
@@ -13,17 +14,19 @@ import {
   Activity,
   Settings,
   AlertCircle,
-  FileText
+  FileText,
+  RefreshCw,
+  X,
+  Plus,
+  Trash2,
+  Edit2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import Link from 'next/link';
+import { useAppContext } from '@/components/providers';
+import { getSupabase } from '@/lib/supabase';
 
-const observers = [
-  'IPCN_Adi Tresa Purnama',
-  'IPCLN_Syefira',
-  'IPCLN_Siti Hapsoh Roditubillah',
-  'IPCLN'
-];
+type Observer = { id: string; nama: string };
 
 const units = [
   'IGD', 'ICU', 'IBS', 'Rawat Jalan', 'Ranap Aisyah', 
@@ -50,6 +53,8 @@ type ApdStatus = 'ya' | 'tidak' | 'na' | null;
 
 export default function InputApdPage() {
   const router = useRouter();
+  const { userRole } = useAppContext();
+  const isIPCN = userRole === 'IPCN' || userRole === 'Admin';
   
   const [startTime, setStartTime] = useState<Date | null>(null);
   
@@ -58,6 +63,12 @@ export default function InputApdPage() {
   const [profesi, setProfesi] = useState('');
   const [tindakan, setTindakan] = useState('');
   
+  // Observer Management
+  const [observers, setObservers] = useState<Observer[]>([]);
+  const [isObserverModalOpen, setIsObserverModalOpen] = useState(false);
+  const [newObserverName, setNewObserverName] = useState('');
+  const [editObserverId, setEditObserverId] = useState<string | null>(null);
+
   const [apdData, setApdData] = useState<Record<string, ApdStatus>>({
     masker: null,
     sarung_tangan: null,
@@ -75,7 +86,81 @@ export default function InputApdPage() {
     requestAnimationFrame(() => {
       setStartTime(new Date());
     });
+    fetchObservers();
   }, []);
+
+  const fetchObservers = async () => {
+    try {
+      const supabase = getSupabase();
+      const { data, error } = await supabase.from('master_observers').select('*').order('nama');
+      if (error) throw error;
+      
+      const hasAdi = data?.some(s => s.nama === 'IPCN_Adi Tresa Purnama');
+      let finalData = data || [];
+      if (!hasAdi) {
+        finalData = [{ nama: 'IPCN_Adi Tresa Purnama' }, ...finalData];
+      }
+      setObservers(finalData);
+      if (finalData.length > 0 && !observer) {
+        setObserver(finalData[0].nama);
+      }
+    } catch (err) {
+      setObservers([{ id: '1', nama: 'IPCN_Adi Tresa Purnama' }]);
+      setObserver('IPCN_Adi Tresa Purnama');
+    }
+  };
+
+  const saveObserver = async () => {
+    if (!newObserverName.trim()) return;
+    try {
+      const supabase = getSupabase();
+      if (editObserverId) {
+        if (!editObserverId.startsWith('local-')) {
+          await supabase.from('master_observers').update({ nama: newObserverName }).eq('id', editObserverId);
+        }
+        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o).sort((a,b) => a.nama.localeCompare(b.nama)));
+      } else {
+        const { data, error } = await supabase.from('master_observers').insert([{ nama: newObserverName }]).select();
+        if (!error && data && data.length > 0) {
+          setObservers(prev => [...prev, data[0]].sort((a,b) => a.nama.localeCompare(b.nama)));
+        } else {
+          setObservers(prev => [...prev, { id: 'local-' + Date.now().toString(), nama: newObserverName }].sort((a,b) => a.nama.localeCompare(b.nama)));
+        }
+      }
+      setNewObserverName('');
+      setEditObserverId(null);
+    } catch (err) {
+      console.error('Save observer non-fatal fallback:', err);
+      // Fallback local update
+      if (editObserverId) {
+        setObservers(prev => prev.map(o => o.id === editObserverId ? { ...o, nama: newObserverName } : o).sort((a,b) => a.nama.localeCompare(b.nama)));
+      } else {
+        setObservers(prev => [...prev, { id: 'local-' + Date.now().toString(), nama: newObserverName }].sort((a,b) => a.nama.localeCompare(b.nama)));
+      }
+      setNewObserverName('');
+      setEditObserverId(null);
+    }
+  };
+
+  const deleteObserver = async (id: string) => {
+    if (!confirm('Hapus observer ini?')) return;
+    try {
+      const supabase = getSupabase();
+      if (!id.startsWith('local-')) {
+        await supabase.from('master_observers').delete().eq('id', id);
+      }
+      setObservers(prev => prev.filter(o => o.id !== id));
+      if (observer === (observers.find(o => o.id === id)?.nama)) {
+        setObserver('');
+      }
+    } catch (err) {
+      console.error('Delete observer fallback:', err);
+      setObservers(prev => prev.filter(o => o.id !== id));
+      if (observer === (observers.find(o => o.id === id)?.nama)) {
+        setObserver('');
+      }
+    }
+  };
 
   const formatDate = (date: Date | null) => {
     if (!date) return '-';
@@ -208,8 +293,8 @@ export default function InputApdPage() {
         </div>
       </div>
 
-      <div className="grid lg:grid-cols-12 gap-8 relative items-start px-4 sm:px-0">
-        <div className="lg:col-span-8 space-y-6">
+      <div className="space-y-8 relative px-4 sm:px-0">
+        <div className="space-y-6">
           <div className="glass-card p-6 rounded-[24px] border-white/5">
             <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-widest text-slate-400 mb-6">
               <Clock className="w-4 h-4 text-blue-400" /> Waktu Observasi
@@ -228,9 +313,16 @@ export default function InputApdPage() {
               <div>
                 <div className="flex justify-between items-end mb-2">
                   <label className="block text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">Observer</label>
-                  <button type="button" className="text-blue-400 hover:text-white transition-colors" title="Kelola Observer">
-                    <Settings className="w-3.5 h-3.5" />
-                  </button>
+                  {isIPCN && (
+                    <button 
+                      type="button" 
+                      onClick={() => setIsObserverModalOpen(true)}
+                      className="text-blue-400 hover:text-white transition-colors" 
+                      title="Kelola Observer"
+                    >
+                      <Settings className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -239,10 +331,10 @@ export default function InputApdPage() {
                   <select 
                     value={observer}
                     onChange={(e) => setObserver(e.target.value)}
-                    className="w-full bg-white/5 border border-white/5 rounded-xl pl-10 pr-4 py-3 text-sm text-white outline-none focus:border-blue-500/50 appearance-none transition-all"
+                    className="w-full bg-white/5 border border-white/5 rounded-xl pl-10 pr-4 py-3 text-sm text-white outline-none focus:border-blue-500/50 appearance-none transition-all cursor-pointer"
                   >
                     <option value="" className="bg-navy-dark text-slate-400">Pilih Observer...</option>
-                    {observers.map(o => <option key={o} value={o} className="bg-navy-dark">{o}</option>)}
+                    {observers.map(o => <option key={o.id || o.nama} value={o.nama} className="bg-navy-dark">{o.nama}</option>)}
                   </select>
                 </div>
               </div>
@@ -356,90 +448,129 @@ export default function InputApdPage() {
           </div>
         </div>
 
-        <div className="lg:col-span-4 lg:sticky lg:top-40 space-y-6">
-          <div className="glass-card p-6 sm:p-8 rounded-[32px] border-white/5 flex flex-col items-center justify-center relative overflow-hidden">
-            <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 blur-[80px] rounded-full -z-10 ${stats.bg.replace('/10', '/20')}`} />
-            
-            <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-8 w-full text-left">Ringkasan Kepatuhan</h3>
-            
-            <div className="relative w-48 h-48 flex items-center justify-center mb-6">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 80 80">
-                <circle 
-                  cx="40" cy="40" r="36" 
-                  fill="transparent" 
-                  stroke="rgba(255,255,255,0.05)" 
-                  strokeWidth="8" 
-                />
-                <motion.circle 
-                  cx="40" cy="40" r="36" 
-                  fill="transparent" 
-                  stroke="currentColor" 
-                  strokeWidth="8" 
-                  strokeDasharray={2 * Math.PI * 36}
-                  strokeLinecap="round"
-                  className={stats.color}
-                  initial={{ strokeDashoffset: 2 * Math.PI * 36 }}
-                  animate={{ strokeDashoffset: calculateDashOffset(stats.persentase) }}
-                  transition={{ duration: 1, ease: 'easeOut' }}
-                />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-4xl font-heading font-bold text-white">{stats.persentase}%</span>
-                <span className={`text-[10px] font-bold uppercase tracking-widest mt-1 ${stats.color}`}>{stats.status}</span>
-              </div>
-            </div>
+        {/* HASIL PERSENTASE STANDARDIZED */}
+        <LiveStatisticsCard 
+          totalDinilai={stats.dinilai}
+          totalPatuh={stats.patuh}
+          totalTidakPatuh={stats.dinilai - stats.patuh}
+          persentase={stats.persentase}
+          statusText={stats.status}
+          title="KEPATUHAN APD"
+        />
 
-            <div className="w-full grid grid-cols-2 gap-4 mt-2">
-              <div className="bg-white/5 rounded-2xl p-4 text-center border border-white/5">
-                <p className="text-2xl font-bold text-white mb-1">{stats.patuh}</p>
-                <p className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">Kepatuhan</p>
-              </div>
-              <div className="bg-white/5 rounded-2xl p-4 text-center border border-white/5">
-                <p className="text-2xl font-bold text-white mb-1">{stats.dinilai}</p>
-                <p className="text-[9px] uppercase tracking-widest text-slate-500 font-bold">Dinilai</p>
-              </div>
-            </div>
-
-            <AnimatePresence>
-              {stats.dinilai > 0 && stats.persentase < 100 && (
-                <motion.div 
-                  initial={{ opacity: 0, height: 0, marginTop: 0 }}
-                  animate={{ opacity: 1, height: 'auto', marginTop: 24 }}
-                  exit={{ opacity: 0, height: 0, marginTop: 0 }}
-                  className="w-full bg-red-500/10 border border-red-500/20 rounded-2xl p-4 text-left overflow-hidden mb-2"
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <AlertCircle className="w-4 h-4 text-red-400" />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-red-400">Smart Alert</span>
-                  </div>
-                  <ul className="text-xs text-red-200 space-y-1.5 list-disc pl-4 font-medium">
-                    <li>Kepatuhan kurang dari standar 100%</li>
-                    <li>Rekomendasi: Edukasi ulang prosedur APD</li>
-                    <li>Tingkatkan supervisi dan monitoring berkala</li>
-                  </ul>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <button
-              onClick={handleSubmit}
-              disabled={isSubmitting || !observer || !unit || !profesi || !tindakan || stats.dinilai === 0}
-              className="mt-6 w-full px-8 py-4 rounded-2xl shadow-[0_0_15px_rgba(59,130,246,0.5)] text-[12px] font-bold uppercase tracking-[0.2em] text-white bg-blue-600 hover:bg-blue-500 focus:outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 hover:scale-105"
+        <AnimatePresence>
+          {stats.dinilai > 0 && stats.persentase < 100 && (
+            <motion.div 
+              initial={{ opacity: 0, height: 0, marginTop: 0 }}
+              animate={{ opacity: 1, height: 'auto', marginTop: 24 }}
+              exit={{ opacity: 0, height: 0, marginTop: 0 }}
+              className="w-full bg-red-500/10 border border-red-500/20 rounded-2xl p-4 text-left overflow-hidden mb-2"
             >
-              {isSubmitting ? (
-                <div className="flex items-center gap-3">
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Menyimpan...
-                </div>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" /> Simpan Data
-                </>
-              )}
-            </button>
-          </div>
-        </div>
+              <div className="flex items-center gap-2 mb-2">
+                <AlertCircle className="w-4 h-4 text-red-400" />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-red-400">Smart Alert</span>
+              </div>
+              <ul className="text-xs text-red-200 space-y-1.5 list-disc pl-4 font-medium">
+                <li>Kepatuhan kurang dari standar 100%</li>
+                <li>Rekomendasi: Edukasi ulang prosedur APD</li>
+                <li>Tingkatkan supervisi dan monitoring berkala</li>
+              </ul>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
+
+      <div className="mt-8">
+        <motion.button
+          onClick={handleSubmit}
+          disabled={isSubmitting || !observer || !unit || !profesi || !tindakan || stats.dinilai === 0}
+          animate={{
+            boxShadow: [
+              "0 0 0 0 rgba(37, 99, 235, 0)",
+              "0 0 0 15px rgba(37, 99, 235, 0.3)",
+              "0 0 0 0 rgba(37, 99, 235, 0)"
+            ]
+          }}
+          transition={{
+            duration: 2,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+          className="w-full flex justify-center items-center gap-4 py-5 bg-blue-600 hover:bg-blue-500 text-white text-base font-bold uppercase tracking-[0.2em] rounded-2xl transition-all border border-blue-400/30 group disabled:opacity-50 overflow-hidden relative shadow-[0_0_20px_rgba(37,99,235,0.4)] glow-blue"
+        >
+          <div className="absolute inset-0 translate-x-[-100%] group-hover:translate-x-[100%] bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-1000 ease-in-out" />
+          {isSubmitting ? (
+            <RefreshCw className="w-5 h-5 animate-spin" />
+          ) : (
+            <>
+              <Save className="w-5 h-5 group-hover:scale-110 transition-transform" />
+              <span>Simpan Data</span>
+            </>
+          )}
+        </motion.button>
+      </div>
+
+      {/* OBSERVER MODAL */}
+      <AnimatePresence>
+        {isObserverModalOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} 
+              animate={{ opacity: 1 }} 
+              exit={{ opacity: 0 }}
+              onClick={() => setIsObserverModalOpen(false)}
+              className="absolute inset-0 bg-navy-dark/80 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="relative w-full max-w-md bg-navy-light border border-white/10 rounded-[2.5rem] shadow-2xl p-8 overflow-hidden"
+            >
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                  <User className="w-5 h-5 text-blue-400" /> Kelola Observer
+                </h3>
+                <button onClick={() => setIsObserverModalOpen(false)} className="p-2 hover:bg-white/5 rounded-xl text-slate-500"><X className="w-5 h-5" /></button>
+              </div>
+
+              <div className="flex gap-2 mb-6">
+                <input 
+                  type="text" 
+                  value={newObserverName}
+                  onChange={(e) => setNewObserverName(e.target.value)}
+                  placeholder="Nama Observer baru..."
+                  disabled={!isIPCN}
+                  className="flex-1 bg-navy-dark border border-white/10 rounded-xl px-4 py-2 text-sm text-white outline-none focus:border-blue-500/50 disabled:opacity-50"
+                  onKeyDown={(e) => e.key === 'Enter' && saveObserver()}
+                />
+                {isIPCN && (
+                  <button 
+                    onClick={saveObserver}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-blue-500"
+                  >
+                    {editObserverId ? 'Update' : 'Tambah'}
+                  </button>
+                )}
+              </div>
+
+              <div className="max-h-[300px] overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                {observers.map(o => (
+                  <div key={o.id || o.nama} className="flex items-center justify-between p-3 bg-navy-dark border border-white/5 rounded-xl group">
+                    <span className="text-sm font-medium text-slate-300">{o.nama}</span>
+                    {isIPCN && (
+                      <div className="flex gap-1">
+                        <button onClick={() => { setNewObserverName(o.nama); setEditObserverId(o.id); }} className="p-2 text-slate-500 hover:text-blue-400 transition-colors"><Edit2 className="w-4 h-4" /></button>
+                        <button onClick={() => deleteObserver(o.id)} className="p-2 text-slate-500 hover:text-red-400 transition-colors"><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

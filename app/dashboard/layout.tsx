@@ -22,6 +22,32 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { useAppContext } from '@/components/providers';
 import { AppLogo } from '@/components/AppLogo';
+import { memo } from 'react';
+
+const NavItem = memo(({ item, isActive }: { item: any, isActive: boolean }) => (
+  <Link 
+    href={item.href}
+    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all group ${
+      isActive 
+        ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.1)]' 
+        : 'text-slate-400 hover:bg-white/5 hover:text-white'
+    }`}
+  >
+    <motion.div
+      animate={isActive ? { y: [0, -3, 0] } : { y: 0 }}
+      transition={{ 
+        duration: 2, 
+        repeat: Infinity, 
+        ease: "easeInOut" 
+      }}
+    >
+      <item.icon className={`w-5 h-5 transition-transform group-hover:scale-110 ${isActive ? 'text-blue-400' : ''}`} />
+    </motion.div>
+    <span className="text-sm font-semibold">{item.name}</span>
+  </Link>
+));
+
+NavItem.displayName = 'NavItem';
 
 const navItems = [
   { name: 'Beranda', href: '/dashboard', icon: LayoutDashboard },
@@ -102,50 +128,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <div className="mb-8 px-2">
                 <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.2em] mb-1">Menu Utama</p>
               </div>
-              {navItems.map((item) => {
-                const isActive = pathname === item.href;
-                return (
-                  <Link 
-                    key={item.name} 
-                    href={item.href}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all group ${
-                      isActive 
-                        ? 'bg-blue-600/10 text-blue-400 border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.1)]' 
-                        : 'text-slate-400 hover:bg-white/5 hover:text-white'
-                    }`}
-                  >
-                    <motion.div
-                      animate={isActive ? { y: [0, -3, 0] } : { y: 0 }}
-                      transition={{ 
-                        duration: 2, 
-                        repeat: Infinity, 
-                        ease: "easeInOut" 
-                      }}
-                    >
-                      <item.icon className={`w-5 h-5 transition-transform group-hover:scale-110 ${isActive ? 'text-blue-400' : ''}`} />
-                    </motion.div>
-                    <span className="text-sm font-semibold">{item.name}</span>
-                  </Link>
-                );
-              })}
-            </div>
-            
-            <div className="p-4 border-t border-white/5 shrink-0 flex flex-col gap-2">
-              <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white/5 border border-white/5">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-[10px] font-bold text-white shadow-lg shadow-blue-500/20">
-                  {userRole?.[0] || 'P'}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-bold text-white truncate uppercase tracking-wider">Pengguna</p>
-                  <p className="text-[10px] text-slate-500 truncate font-medium">{userRole}</p>
-                </div>
+              {navItems.map((item) => (
+                <NavItem 
+                  key={item.name} 
+                  item={item} 
+                  isActive={pathname === item.href} 
+                />
+              ))}
+            </div>            
+            <div className="p-6 border-t border-white/5 shrink-0 flex items-center justify-between">
+              <div className="flex items-center gap-2 opacity-50">
+                <AppLogo className="w-5 h-5 text-white" iconClassName="w-3 h-3 text-white" />
+                <span className="text-[8px] font-bold uppercase tracking-widest text-slate-500">SMART PPI v1.0</span>
               </div>
               <Link 
                 href="/login"
                 onClick={() => setUserRole('IPCN')}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
+                className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-red-400 transition-all group"
               >
-                <LogOut className="w-3.5 h-3.5" />
+                <LogOut className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" />
                 <span>Keluar</span>
               </Link>
             </div>
